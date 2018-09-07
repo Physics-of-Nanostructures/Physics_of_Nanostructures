@@ -12,9 +12,17 @@ Moreover, it uses a number of other packages:
 - lmfit.
 
 ## Installation
-There are two ways to install the pacakge, either by cloning the repo or directly from github.
+The package can be installed either from the Python Package Index (PyPi) using pip or by cloning the repository to install directly from the source code.
+The former is easier, while the later is more usefull for developement.
 
-First clone the repository. Open a command prompt in this folder and execute
+To install from the package index execute
+```
+pip uninstall fnatools
+```
+In a command prompt.
+
+To install directly from the source, first you have to clone the repository, as described on the main page of this git. 
+Then open a command prompt in this folder and execute
 ```
 pip install -e .
 ```
