@@ -159,9 +159,11 @@ def mpms3(filename, keep_columns=False, no_print=False):
             print("{}, {}".format(key, value))
 
         print()
-        print(" Time, comment")
-        for key, value in metadata["Comments"].items():
-            print("{: 5.0f}, {}".format(key, value))
-        print()
+
+        if "Comments" in metadata:
+            print(" Time, comment")
+            for key, value in metadata["Comments"].items():
+                print("{: 5.0f}, {}".format(key, value))
+            print()
 
     return data, metadata
