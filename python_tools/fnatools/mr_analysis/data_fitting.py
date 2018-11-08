@@ -209,10 +209,15 @@ def fit_both_harmonics(data, fit_background=True, angle_col="Angle",
             H2pars["V_0"].value = 0
             H2pars["V_0"].vary = False
 
+    try:
+        I_0 = data[current_col]
+    except KeyError:
+        I_0 = 1
+
     resultsH1 = H1.fit(data[Vh1_col],
                        H1pars,
                        phi=data[angle_col],
-                       I_0=data[current_col],
+                       I_0=I_0,
                        H=data[field_col])
 
     if transfer_params is not None and "free" in transfer_params:
@@ -228,7 +233,7 @@ def fit_both_harmonics(data, fit_background=True, angle_col="Angle",
     resultsH2 = H2.fit(data[Vh2_col],
                        H2pars,
                        phi=data[angle_col],
-                       I_0=data[current_col],
+                       I_0=I_0,
                        H=data[field_col])
 
     return resultsH1, resultsH2
