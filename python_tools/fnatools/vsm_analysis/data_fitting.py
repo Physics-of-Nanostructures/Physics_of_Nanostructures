@@ -143,7 +143,7 @@ def background_subtraction(data, keep_uncorrected: bool = False,
 
     Returns
     -------
-    pandas
+    pandas.DataFrame
         Background subtracted measurement.
     dict
         Offset (key is "offset") and slope (key is "slope") of the linear
