@@ -2,7 +2,7 @@ import numpy.random
 import numpy
 
 
-def Solver(self, t, y, h, *args,
+def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.001, a_tol=0.1,
            random_shape=None, should_stop=None, t_max=None, **kwargs):
     # grab stop-criterion
     if should_stop is None:
@@ -12,26 +12,44 @@ def Solver(self, t, y, h, *args,
     # Create arrays for storing and populate with initial value
     T = [t]
     Y = [y]
+    n_steps = 0
+    n_evals = 0
 
     while not should_stop(t, y, h):
+        n_steps += 1
+        h_step = h
+
         # Generate random numbers if required
         if random_shape is not None:
             random_numbers = numpy.random.randn(*random_shape)
             kwargs['rand'] = random_numbers
+
         # Calculate time-step
-        dy, _ = self._stepper(self, t, y, h, *args, **kwargs)
+        while True:
+            n_evals += 1
+            dy, ey = self._stepper(self, t, y, h_step, *args, **kwargs)
+
+            if adaptive and ey is not None:
+                # check if time step is to be accepted
+                e_norm = ey / ((dy + y) * r_tol + a_tol)
+                if numpy.abs(numpy.max(e_norm)) >= 1:
+                    h_step /= 2.
+                else:
+                    break
+            else:
+                break
+
+        # add timestep to
         y = y + dy
-        t = t + h
+        t = t + h_step
 
         # Store time-step
         T.append(t)
         Y.append(y)
 
+    print(n_evals, n_steps)
+
     return T, Y
-
-
-def Adaptive_Solver(self, *args, **kwargs):
-    raise NotImplementedError('Adaptive-Solver not yet implemented')
 
 
 def RK4_stepper(self, t, y, h, *args, **kwargs):

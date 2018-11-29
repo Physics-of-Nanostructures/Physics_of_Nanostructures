@@ -1,5 +1,6 @@
 from fnatools import llg_model_solver
 from matplotlib import pyplot as plt
+import numpy as np
 
 if __name__ == "__main__":
     model = llg_model_solver.LLG_Model()
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     model.equilibrate()
 
     def eq(t, y, h, rand=None):
-        dy = 2 * t + 200 * h * rand**2
+        dy = 2 * t**2-y*np.sin(t) + 200 * h * rand**2
         return dy
 
     model._fun = eq

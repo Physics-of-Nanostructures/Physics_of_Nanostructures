@@ -10,12 +10,9 @@ class LLG_Model():
     e_mass = 9.10938356e-31
     mu_B = 0.5 * e_charge / e_mass * h_bar
 
-    def __init__(self, stepper='RK45', adaptive_solver=False):
-
-        if adaptive_solver:
-            self._solver = Adaptive_Solver
-        else:
-            self._solver = Solver
+    def __init__(self, stepper='RK45', adaptive_solver=True):
+        self._solver = Solver
+        self._solver_kwargs = {'adaptive': adaptive_solver}
 
         if stepper in steppers:
             self._stepper = steppers[stepper]
@@ -60,7 +57,8 @@ class LLG_Model():
 
         # Start solver
         T, Y = self._solver(self, t, y, h, random_shape=random_shape,
-                            should_stop=should_stop, t_max=t_max)
+                            should_stop=should_stop, t_max=t_max,
+                            **self._solver_kwargs)
 
         # Process results
         self.t_result = np.array(T)
