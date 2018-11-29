@@ -10,7 +10,7 @@ class LLG_Model():
     e_mass = 9.10938356e-31
     mu_B = 0.5 * e_charge / e_mass * h_bar
 
-    def __init__(self, stepper='RK4', adaptive_solver=False):
+    def __init__(self, stepper='RK45', adaptive_solver=False):
 
         if adaptive_solver:
             self._solver = Adaptive_Solver
@@ -66,7 +66,7 @@ class LLG_Model():
         self.t_result = np.array(T)
         self.m_result = np.array(Y)
 
-    def equations(self, m, t, rand=None):
+    def equations(self, t, m, h, rand=None):
         Heff = self.J * m
 
         c = self.gamma / (1 + self.alpha**2) * self.mu_0
