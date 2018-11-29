@@ -10,14 +10,22 @@ if __name__ == "__main__":
     model.initialize()
     model.equilibrate()
 
-    def eq(t, y, h, rand=None):
-        dy = 2 * t**2-y*np.sin(t) + 200 * h * rand**2
-        return dy
+    # def eq(t, y, h, rand=None):
+    #     dy = 2 * t**2 - y * np.sin(t) + y * h * rand
+    #     return dy
 
-    model._fun = eq
+    # model._fun = eq
 
     model.execute()
 
-    fig, ax = plt.subplots(1, 1)
-    ax.plot(model.t_result, model.m_result)
+    fig, [ax, ax2] = plt.subplots(1, 2)
+    ax.plot(model.t_result, model.m_result[:, 0, 0])
+    ax.plot(model.t_result, model.m_result[:, 0, 1])
+    ax.plot(model.t_result, model.m_result[:, 0, 2])
+    ax.plot(model.t_result, model.m_result[:, 1, 0])
+    ax.plot(model.t_result, model.m_result[:, 1, 1])
+    ax.plot(model.t_result, model.m_result[:, 1, 2])
+
+    ax2.plot(model.t_result, model.total_mag_results[0])
+    ax2.plot(model.t_result, model.total_mag_results[1])
     plt.show()

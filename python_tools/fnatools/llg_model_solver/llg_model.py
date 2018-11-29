@@ -21,11 +21,13 @@ class LLG_Model():
 
         self._fun = self.equations
 
-    def setup(self, number_of_spins=1, exchange=-1.):
+    def setup(self, number_of_spins=2, exchange=-0.0001):
+        self.number_of_spins = number_of_spins
+
         # define constants
         self.g_factor = 2
         self.gamma = self.g_factor * self.mu_B / self.h_bar
-        self.alpha = 0.02
+        self.alpha = 0.2
 
         # Define spin-matrix
         m = []
@@ -50,27 +52,48 @@ class LLG_Model():
     def execute(self, should_stop=None):
         # Prepare solving
         t = 0
-        y = np.array([0, 0, 0, 0, 0, 0])
-        h = 0.025
-        t_max = 10
-        random_shape = np.shape(y)
+        # y = np.array([[0, 0, 1], [0, 0, 1]])
+        m = self.m
+        h = 0.1
+        t_max = 1000
+        random_shape = np.shape(m)
 
         # Start solver
-        T, Y = self._solver(self, t, y, h, random_shape=random_shape,
+        T, M = self._solver(self, t, m, h, random_shape=random_shape,
                             should_stop=should_stop, t_max=t_max,
                             **self._solver_kwargs)
 
+        self.m = M[-1]
+
         # Process results
         self.t_result = np.array(T)
-        self.m_result = np.array(Y)
+        self.m_result = np.array(M)
+
+        self.calculate_order_parameters()
 
     def equations(self, t, m, h, rand=None):
-        Heff = self.J * m
+        Hexch = numpy.matmul(self.J, m)
+        Hrand = rand * 1e-7
+
+        Heff = Hexch + Hrand
 
         c = self.gamma / (1 + self.alpha**2) * self.mu_0
-        dm = - c * self._cross_product(m, Heff)
+        cross = self._cross_product(m, Heff)
+        dm = - c * (cross + self.alpha * self._cross_product(m, cross))
 
         return dm
+
+    def calculate_order_parameters(self, ):
+        self.total_mag_results = []
+
+        for idx in range(self.number_of_spins):
+            x = self.m_result[:, idx, 0]
+            y = self.m_result[:, idx, 1]
+            z = self.m_result[:, idx, 2]
+            m = x**2 + y**2 + z**2
+            self.total_mag_results.append(m)
+
+        pass
 
     @staticmethod
     def _cross_product(A, B):

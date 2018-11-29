@@ -2,7 +2,7 @@ import numpy.random
 import numpy
 
 
-def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.001, a_tol=0.1,
+def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
            random_shape=None, should_stop=None, t_max=None, **kwargs):
     # grab stop-criterion
     if should_stop is None:
