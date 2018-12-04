@@ -286,8 +286,8 @@ def fit_hall_voltage(data, V_column="Lock_In_1_X", I0=1e-3, harmonic=1):
     return result
 
 
-def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
-                            R_AHE=1, V_0=0):
+def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
+                            R_AHE_DL=1, V_0=0):
     """
     Calculate the second harmonic hall voltage based on equation (2) from
     MacNeill et al. (2017) PRB 96, 054450.
@@ -300,10 +300,12 @@ def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
         in-plane angle offset (degrees)
     I_0 : float
         Measurement current (A)
-    R_PHE : float
-        Planar-Hall resistance (Ohm)
-    R_AHE : float
-        Anomalous-Hall resistance (Ohm)
+    R_PHE_FL : float
+        Planar-Hall resistance for FL torque (Ohm)
+    R_PHE_DL : float
+        Planar-Hall resistance for DL torque (Ohm)
+    R_AHE_DL : float
+        Anomalous-Hall resistance for DL torque (Ohm)
     V_0: float
         Offset voltage (V)
 
@@ -314,8 +316,11 @@ def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
     """
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
 
-    C_AHE = numpy.cos(2 * phi_M) * numpy.cos(phi_M)
-    C_PHE = numpy.cos(phi_M)
+    C_PHE_FL = numpy.cos(2 * phi_M)
+    C_PHE_DL = numpy.cos(2 * phi_M) * numpy.cos(phi_M)
+    C_AHE_DL = numpy.cos(phi_M)
 
-    V2_H = I_0 * (R_PHE * C_PHE + R_AHE * C_AHE) + V_0
+    V2_H = V_0 + I_0 * (R_PHE_FL * C_PHE_FL +
+                        R_PHE_DL * C_PHE_DL +
+                        R_AHE_DL * C_AHE_DL)
     return V2_H
