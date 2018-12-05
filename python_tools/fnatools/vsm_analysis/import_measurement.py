@@ -64,20 +64,22 @@ def mpms3(filename, keep_columns=False, no_print=False):
                     "Lockin Signal (V)", "Lockin Signal' (V)",
                     "Min. Temperature (K)", "Max. Temperature (K)",
                     "Min. Field (Oe)", "Max. Field (Oe)",
-                    "Mass (grams)", "Range",
+                    "Mass (grams)", "Range", "M. Quad. Signal (Am2)",
                     "M. Quad. Signal (emu)", "Frequency (Hz)"]
-
-    for column in drop_columns:
-        temp = set(data[column])
-        if len(temp) == 1:
-            metadata[column] = list(temp)[0]
 
     metadata["Mass (grams)"] = numpy.mean(data["Mass (grams)"])
     metadata["Mass (grams) std.err."] = numpy.std(data["Mass (grams)"])
 
-    if not keep_columns:
-        # drop mentioned columns
-        data.drop(labels=drop_columns, axis=1, inplace=True)
+    for column in drop_columns:
+        try:
+            temp = set(data[column])
+            if len(temp) == 1:
+                metadata[column] = list(temp)[0]
+
+            if not keep_columns:
+                data.drop(labels=column, axis=1, inplace=True)
+        except KeyError:
+            pass
 
     # Timestamp fixing
     start_time = data["Time Stamp (sec)"].min()
@@ -113,11 +115,11 @@ def mpms3(filename, keep_columns=False, no_print=False):
             rename_columns[column] = new_name
         elif "(emu)" in column:
             data[column] *= 1e-3
-            new_name = column.replace("(emu)", "(A.m2)").strip()
+            new_name = column.replace("(emu)", "(Am2)").strip()
             rename_columns[column] = new_name
         elif "(emu/Oe)" in column:
             data[column] *= 1e-6 * (4 * numpy.pi)
-            new_name = column.replace("(emu/Oe)", "(A.m)").strip()
+            new_name = column.replace("(emu/Oe)", "(Am)").strip()
             rename_columns[column] = new_name
 
     data.rename(columns=rename_columns, inplace=True)
