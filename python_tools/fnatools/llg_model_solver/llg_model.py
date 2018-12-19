@@ -72,16 +72,20 @@ class LLG_Model():
         self.calculate_order_parameters()
 
     def equations(self, t, m, h, rand=None):
-        Hexch = numpy.matmul(self.J, m)
-        Hrand = rand * 1e-7
+        # dtheta =
+        pass
 
-        Heff = Hexch + Hrand
+    # def equations(self, t, m, h, rand=None):
+    #     Hexch = numpy.matmul(self.J, m)
+    #     Hrand = rand * 1e-7
 
-        c = self.gamma / (1 + self.alpha**2) * self.mu_0
-        cross = self._cross_product(m, Heff)
-        dm = - c * (cross + self.alpha * self._cross_product(m, cross))
+    #     Heff = Hexch + Hrand
 
-        return dm
+    #     c = self.gamma / (1 + self.alpha**2) * self.mu_0
+    #     cross = self._cross_product(m, Heff)
+    #     dm = - c * (cross + self.alpha * self._cross_product(m, cross))
+
+    #     return dm
 
     def calculate_order_parameters(self, ):
         self.total_mag_results = []
