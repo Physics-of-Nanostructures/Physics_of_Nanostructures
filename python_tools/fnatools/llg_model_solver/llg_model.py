@@ -100,6 +100,17 @@ class LLG_Model():
         pass
 
     @staticmethod
+    def _rotate_90degrees(theta, phi, direction=+1):
+        z0 = (numpy.sin(theta / 2) * numpy.exp(1j * phi) * direction +
+              numpy.cos(theta / 2)) / numpy.sqrt(2)
+        z1 = (numpy.sin(theta / 2) * numpy.exp(1j * phi) -
+              numpy.cos(theta / 2) * direction) / numpy.sqrt(2)
+
+        theta = 2 * numpy.arctan2(numpy.abs(z1), numpy.abs(z0))
+        phi = numpy.angle(z0) - numpy.angle(z1)
+        return theta, phi
+
+    @staticmethod
     def _cross_product(A, B):
         X = A[:, 1] * B[:, 2] - A[:, 2] * B[:, 1]
         Y = A[:, 2] * B[:, 0] - A[:, 0] * B[:, 2]
