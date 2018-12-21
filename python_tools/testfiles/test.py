@@ -4,11 +4,9 @@ import numpy as np
 
 if __name__ == "__main__":
     model = llg_model_solver.LLG_Model()
+    model.setup()
 
-    print(model._rotate_90degrees(np.pi, 0))
-
-
-    # model.setup()
+    
 
     # model.initialize()
     # model.equilibrate()
@@ -19,16 +17,16 @@ if __name__ == "__main__":
 
     # # model._fun = eq
 
-    # model.execute()
+    model.execute()
 
-    # fig, [ax, ax2] = plt.subplots(1, 2)
-    # ax.plot(model.t_result, model.m_result[:, 0, 0])
-    # ax.plot(model.t_result, model.m_result[:, 0, 1])
-    # ax.plot(model.t_result, model.m_result[:, 0, 2])
-    # ax.plot(model.t_result, model.m_result[:, 1, 0])
-    # ax.plot(model.t_result, model.m_result[:, 1, 1])
-    # ax.plot(model.t_result, model.m_result[:, 1, 2])
+    fig, [ax, ax2] = plt.subplots(1, 2)
+    ax.plot(model.t_result, model.m_result[:, 0])
+    ax.plot(model.t_result, model.m_result[:, 0])
+    ax.plot(model.t_result, model.m_result[:, 0])
+    ax.plot(model.t_result, model.m_result[:, 1])
+    ax.plot(model.t_result, model.m_result[:, 1])
+    ax.plot(model.t_result, model.m_result[:, 1])
 
     # ax2.plot(model.t_result, model.total_mag_results[0])
     # ax2.plot(model.t_result, model.total_mag_results[1])
-    # plt.show()
+    plt.show()
