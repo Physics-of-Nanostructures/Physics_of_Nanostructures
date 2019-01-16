@@ -34,7 +34,7 @@ class LLG_Model():
         m = []
 
         for idx in range(number_of_spins):
-            m.append([np.pi, 0])
+            m.append([np.pi * 0, np.pi / 2])
 
         self.mspheric = np.array(m).T
 
@@ -56,33 +56,45 @@ class LLG_Model():
         # Prepare solving
         t = 0
         # y = np.array([[0, 0, 1], [0, 0, 1]])
-        h = 0.1
-        t_max = 1000
+        # h = 0.0001
+        t_max = 0.1
+        h = t_max / 5000
         mspheric = self.mspheric
         random_shape = np.shape(mspheric)
 
         # Start solver
-        T, M = self._solver(self, t, mspheric, h, random_shape=random_shape,
-                            should_stop=should_stop, t_max=t_max,
-                            **self._solver_kwargs)
+        T, M, R = self._solver(self, t, mspheric, h, random_shape=random_shape,
+                               should_stop=should_stop, t_max=t_max,
+                               step_function_pre=self._rotate_step_function_pre,
+                               step_function_post=self._rotate_step_function_post,
+                               step_function_requirement=self._require_rotation,
+                               **self._solver_kwargs)
+
+        # M = np.array(M)
 
         self.m = M[-1]
 
         # Process results
-        self.t_result = np.array(T)
-        self.m_result = np.array(M)
+        theta = M[:, 0, :]
+        phi = M[:, 1, :]
+
+        self.t_result = T
+        self.mspherical_result = M
+        self.rotated = R
+        self.mcartesian_result = numpy.transpose(
+            self._spherical_to_cartesian(1, theta, phi), (1, 0, 2))
 
     def equations(self, t, mspheric, h, rand=None):
         theta = mspheric[0, :]
         phi = mspheric[1, :]
 
-        Hfx = 0
+        Hfx = 1
         Hfy = 0
-        Hfz = 1
+        Hfz = 0
 
         Hdx = 0
         Hdy = 0
-        Hdz = 1
+        Hdz = 0
 
         dtheta = self.gamma * self.mu_0 * (
             - Hfx * numpy.cos(theta) +
@@ -99,6 +111,11 @@ class LLG_Model():
             + self.alpha * Hdx * numpy.cos(phi) +
             - self.alpha * Hdy * numpy.sin(phi)
         )
+
+        # print(dtheta, dphi)
+
+        # dtheta = 1 + theta * 0
+        # dphi = 0 + theta * 0
 
         dmspheric = np.array([dtheta, dphi])
         return dmspheric
@@ -143,12 +160,27 @@ class LLG_Model():
         x, z = direction * z, - direction * x
         return x, y, z
 
+    def _rotate_step_function_pre(self, y):
+        y = np.array(self._rotate_1qy_spherical(y[0, :], y[1, :], +1))
+        return y
+
+    def _rotate_step_function_post(self, y):
+        y = np.array(self._rotate_1qy_spherical(y[0, :], y[1, :], -1))
+        return y
+
+    @staticmethod
+    def _require_rotation(y):
+        if any(numpy.abs(numpy.sin(y[0, :])) <= 0.5):
+            return True
+        else:
+            return False
+
     @staticmethod
     def _spherical_to_cartesian(r, theta, phi):
         x = r * numpy.sin(theta) * numpy.cos(phi)
         y = r * numpy.sin(theta) * numpy.sin(phi)
         z = r * numpy.cos(theta)
-        return x, y, z
+        return np.array([x, y, z])
 
     @staticmethod
     def _cross_product(A, B):

@@ -3,7 +3,9 @@ import numpy
 
 
 def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
-           random_shape=None, should_stop=None, t_max=None, **kwargs):
+           random_shape=None, should_stop=None, t_max=None,
+           step_function_pre=None, step_function_post=None,
+           step_function_requirement=None, **kwargs):
     # grab stop-criterion
     if should_stop is None:
         def should_stop(t, y, h):
@@ -12,6 +14,7 @@ def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
     # Create arrays for storing and populate with initial value
     T = [t]
     Y = [y]
+    R = [0]
     n_steps = 0
     n_evals = 0
 
@@ -23,6 +26,16 @@ def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
         if random_shape is not None:
             random_numbers = numpy.random.randn(*random_shape)
             kwargs['rand'] = random_numbers
+
+        if step_function_requirement is not None:
+            step_function = step_function_requirement(y)
+        else:
+            step_function = False
+
+        R.append(int(step_function))
+
+        if step_function:
+            y = step_function_pre(y)
 
         # Calculate time-step
         while True:
@@ -43,13 +56,22 @@ def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
         y = y + dy
         t = t + h_step
 
+        if step_function:
+            y = step_function_post(y)
+
         # Store time-step
         T.append(t)
         Y.append(y)
 
     print(n_evals, n_steps)
 
-    return T, Y
+    print(Y[0].shape, Y[1].shape, Y[-1].shape)
+
+    T = numpy.array(T)
+    Y = numpy.array(Y)
+    R = numpy.array(R)
+
+    return T, Y, R
 
 
 def RK4_stepper(self, t, y, h, *args, **kwargs):
