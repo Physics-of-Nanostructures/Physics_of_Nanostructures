@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
     model = llg_model_solver.LLG_Model()
-    model.setup()
+    model.setup(1)
 
     # y1 = model.mspheric
     # y2 = model._rotate_step_function_pre(y1)
@@ -26,15 +26,19 @@ if __name__ == "__main__":
 
     model.execute()
 
-    fig, ax = plt.subplots(1, 1)
-    ax.plot(model.t_result, model.mcartesian_result[:, 0, 0])
-    ax.plot(model.t_result, model.mcartesian_result[:, 1, 0])
-    ax.plot(model.t_result, model.mcartesian_result[:, 2, 0])
-    ax.plot(model.t_result, model.rotated)
+    fig, [axC, axS, axR] = plt.subplots(3, 1, sharex=True)
+    axC.plot(model.t_result, model.mcartesian_result[:, 0, 0])
+    axC.plot(model.t_result, model.mcartesian_result[:, 1, 0])
+    axC.plot(model.t_result, model.mcartesian_result[:, 2, 0])
+    axS.plot(model.t_result, model.mspherical_result[:, 0, 0])
+    axS.plot(model.t_result, model.mspherical_result[:, 1, 0])
+    axR.plot(model.t_result, model.rotated)
     # ax.plot(model.t_result, model.mcartesian_result[:, 1])
     # ax.plot(model.t_result, model.mcartesian_result[:, 1])
     # ax.plot(model.t_result, model.mcartesian_result[:, 1])
 
     # ax2.plot(model.t_result, model.total_mag_results[0])
     # ax2.plot(model.t_result, model.total_mag_results[1])
+
+    plt.tight_layout()
     plt.show()

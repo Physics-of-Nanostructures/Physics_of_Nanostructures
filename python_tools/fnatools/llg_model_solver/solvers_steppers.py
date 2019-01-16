@@ -4,8 +4,8 @@ import numpy
 
 def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
            random_shape=None, should_stop=None, t_max=None,
-           step_function_pre=None, step_function_post=None,
-           step_function_requirement=None, **kwargs):
+           step_fcn_pre=None, step_fcn_post=None,
+           step_fcn_requirement=None, **kwargs):
     # grab stop-criterion
     if should_stop is None:
         def should_stop(t, y, h):
@@ -27,15 +27,15 @@ def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
             random_numbers = numpy.random.randn(*random_shape)
             kwargs['rand'] = random_numbers
 
-        if step_function_requirement is not None:
-            step_function = step_function_requirement(y)
+        if step_fcn_requirement is not None:
+            step_function = step_fcn_requirement(y)
         else:
             step_function = False
 
         R.append(int(step_function))
 
         if step_function:
-            y = step_function_pre(y)
+            y = step_fcn_pre(y)
 
         # Calculate time-step
         while True:
@@ -57,7 +57,7 @@ def Solver(self, t, y, h, *args, adaptive=True, r_tol=0.01, a_tol=0.1,
         t = t + h_step
 
         if step_function:
-            y = step_function_post(y)
+            y = step_fcn_post(y)
 
         # Store time-step
         T.append(t)

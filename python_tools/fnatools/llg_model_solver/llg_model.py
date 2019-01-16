@@ -57,17 +57,17 @@ class LLG_Model():
         t = 0
         # y = np.array([[0, 0, 1], [0, 0, 1]])
         # h = 0.0001
-        t_max = 0.1
-        h = t_max / 5000
+        t_max = 1
+        h = t_max / 15000
         mspheric = self.mspheric
         random_shape = np.shape(mspheric)
 
         # Start solver
         T, M, R = self._solver(self, t, mspheric, h, random_shape=random_shape,
                                should_stop=should_stop, t_max=t_max,
-                               step_function_pre=self._rotate_step_function_pre,
-                               step_function_post=self._rotate_step_function_post,
-                               step_function_requirement=self._require_rotation,
+                               step_fcn_pre=self._rotate_pre,
+                               step_fcn_post=self._rotate_post,
+                               step_fcn_requirement=self._require_rotation,
                                **self._solver_kwargs)
 
         # M = np.array(M)
@@ -88,7 +88,7 @@ class LLG_Model():
         theta = mspheric[0, :]
         phi = mspheric[1, :]
 
-        Hfx = 1
+        Hfx = 1e-1
         Hfy = 0
         Hfz = 0
 
@@ -160,11 +160,11 @@ class LLG_Model():
         x, z = direction * z, - direction * x
         return x, y, z
 
-    def _rotate_step_function_pre(self, y):
+    def _rotate_pre(self, y):
         y = np.array(self._rotate_1qy_spherical(y[0, :], y[1, :], +1))
         return y
 
-    def _rotate_step_function_post(self, y):
+    def _rotate_post(self, y):
         y = np.array(self._rotate_1qy_spherical(y[0, :], y[1, :], -1))
         return y
 
