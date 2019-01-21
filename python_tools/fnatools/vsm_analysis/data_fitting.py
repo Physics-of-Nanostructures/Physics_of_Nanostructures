@@ -77,8 +77,11 @@ def fit_hysteresis(data: pandas.DataFrame):
         dM0dB = BG["slope"]
 
         gradient = numpy.gradient(dataset["Moment"], dataset["Induction"])
-        max_gradient_idx = numpy.max(gradient) == gradient
-        B0 = float(dataset["Induction"][max_gradient_idx])
+        max_gradient_idx = numpy.argmax(gradient)
+        try:
+            B0 = float(numpy.array(dataset["Induction"])[max_gradient_idx])
+        except TypeError:
+            print(max_gradient_idx)
 
         B1 = numpy.mean(numpy.abs(numpy.diff(data["Induction"])))
         Ms = (numpy.max(dataset["Moment"]) -
@@ -140,7 +143,7 @@ def background_subtraction(data, keep_uncorrected: bool = False,
 
     Returns
     -------
-    pandas
+    pandas.DataFrame
         Background subtracted measurement.
     dict
         Offset (key is "offset") and slope (key is "slope") of the linear
