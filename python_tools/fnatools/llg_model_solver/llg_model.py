@@ -4,11 +4,17 @@ from .solvers_steppers import *
 
 class LLG_Model():
     # physical constants
-    mu_0 = 4 * np.pi * 1e-7
-    e_charge = 1.6021766208e-19
-    h_bar = 6.626070040e-34
-    e_mass = 9.10938356e-31
-    mu_B = 0.5 * e_charge / e_mass * h_bar
+    mu_0 = 4 * numpy.pi * 1e-7  # T / (A / m)
+    e_charge = 1.6021766208e-19  # C
+    h_bar = 6.626070150e-34 / (2 * numpy.pi)  # J * s
+    e_mass = 9.10938356e-31  # kg
+    mu_B = e_charge * h_bar / (2 * e_mass)  # J / T
+
+    # material constants (Cobalt as example)
+    g_factor = 2
+    gamma = g_factor * mu_B / h_bar  # Hz / T
+    alpha = 0.02
+    Ms = 1.4e6  # A / m
 
     def __init__(self, stepper='RK45', adaptive_solver=True):
         self._solver = Solver
