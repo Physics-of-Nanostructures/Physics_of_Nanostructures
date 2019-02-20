@@ -64,7 +64,11 @@ def pyMeasurement(filename):
     for column in columns:
         if column == "Comment":
             continue
-        name, unit = column.split(" (", maxsplit=1)
+        try:
+            name, unit = column.split(" (", maxsplit=1)
+        except ValueError:
+            name = column
+            unit = 'None'
         name = name.strip()
         name = re.sub("\W|^(?=\d)", "_", name)
         name = name.replace("__", "_")
