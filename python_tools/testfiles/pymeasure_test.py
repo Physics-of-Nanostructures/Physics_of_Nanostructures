@@ -15,7 +15,6 @@ from pymeasure.experiment import IntegerParameter, FloatParameter, Parameter
 from fnatools.pymeasure_addons import Sequencer
 
 class RandomProcedure(Procedure):
-
     iterations = IntegerParameter('Loop Iterations')
     delay = FloatParameter('Delay Time', units='s', default=0.2)
     seed = Parameter('Random Seed', default='12345')
@@ -51,11 +50,8 @@ class MainWindow(ManagedWindow):
             x_axis='Iteration',
             y_axis='Random Number'
         )
-        self.sequencer = Sequencer(
-            self.procedure_class,
-            self.displays,
-            parent=self
-        )
+
+        self.sequencer = Sequencer(self)
 
         self.setWindowTitle('GUI Example')
 
