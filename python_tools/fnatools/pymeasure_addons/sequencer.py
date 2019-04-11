@@ -166,24 +166,33 @@ class Sequencer(QtGui.QWidget):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
         depth_previous = -1
         sequences = []
+        current_sequence = []
 
-        # while iterator.value():
-        #     item = iterator.value()
+        while iterator.value():
+            item = iterator.value()
+            depth = self._depth_of_child(item)
 
-        #     depth = self._depth_of_child(item)
-        #     name = self.tree.itemWidget(item, 1).currentText()
-        #     param = self.names_inv[name]
-        #     sequence = self.eval_string(self.tree.itemWidget(item, 2).text())
+            If depth <= depth_previous:
+                sequences.append(current_sequence)
+                current_sequence = current_sequence[:depth]
 
-        #     print(depth, name, sequence)
+            name = self.tree.itemWidget(item, 1).currentText()
 
-        #     if depth > depth_previous and depth_previous is not -1:
-        #         pass
+            current_sequence.append({
+                'parameter': self.names_inv[name],
+                'sequence': self.eval_string(self.tree.itemWidget(item, 2).text(),
+                                         name, depth),
+            }
 
-        #     iterator += 1
-        #     depth_previous = depth
+            iterator += 1
+            depth_previous = depth
+
+        print(sequences)
+
+    def generate_sequence(self):
         root = self.tree.invisibleRootItem()
         sequence_list = []
+
         for main_child_idx in range(root.childCount()):
             sequence = self.get_underlying_sequence(root.child(main_child_idx))
             sequence_list.append(sequence)
@@ -254,3 +263,12 @@ class Sequencer(QtGui.QWidget):
             log.error("No sequence entered for " +
                       f"for parameter {name}, depth {depth}")
         return evaluated_string
+eturn depth
+
+        # print(self.tree.itemWidget(item, 1))
+        # pass
+
+    @staticmethod
+    def eval_string(string, name=None, depth=None):
+        evaluated_string = None
+        if len(str
