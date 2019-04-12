@@ -164,17 +164,12 @@ class Sequencer(QtGui.QWidget):
 
     def generate_sequence(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
-        depth_previous = -1
         sequences = []
         current_sequence = []
 
         while iterator.value():
             item = iterator.value()
             depth = self._depth_of_child(item)
-
-            if depth <= depth_previous:
-                sequences.append(current_sequence)
-                current_sequence = current_sequence[:depth]
 
             name = self.tree.itemWidget(item, 1).currentText()
 
@@ -187,12 +182,13 @@ class Sequencer(QtGui.QWidget):
             })
 
             iterator += 1
-            depth_previous = depth
+            next_depth = self._depth_of_child(iterator.value())
 
-        print(sequences)
+            if next_depth <= depth:
+                sequences.append(current_sequence)
+                current_sequence = current_sequence[:next_depth - 1]
 
-
-
+        return sequences
 
     @staticmethod
     def _depth_of_child(item):
