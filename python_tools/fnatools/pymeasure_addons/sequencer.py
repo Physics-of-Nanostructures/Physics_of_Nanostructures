@@ -130,8 +130,7 @@ class Sequencer(QtGui.QWidget):
         parent = item.parent()
 
         if parent is None:
-            print("Removing main element not yet implemented")
-            return
+            parent = self.tree.invisibleRootItem()
 
         parent.removeChild(item)
 
