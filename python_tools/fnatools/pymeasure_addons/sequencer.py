@@ -218,4 +218,6 @@ class Sequencer(QtGui.QWidget):
         else:
             log.error("No sequence entered for " +
                       f"for parameter {name}, depth {depth}")
+
+        evaluated_string = np.squeeze(np.array(evaluated_string))
         return evaluated_string
