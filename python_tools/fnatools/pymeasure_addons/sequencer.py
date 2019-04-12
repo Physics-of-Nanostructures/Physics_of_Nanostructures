@@ -164,6 +164,7 @@ class Sequencer(QtGui.QWidget):
 
     def queue_sequence(self):
         sequences = self._generate_sequence_from_tree()
+        n = 0
 
         for sequence in sequences:
             parameters = [item['parameter'] for item in sequence]
@@ -182,6 +183,9 @@ class Sequencer(QtGui.QWidget):
                     procedure = self._parent.make_procedure()
                     procedure.set_parameters(combi_dict)
                     self._parent.queue(procedure=procedure)
+                    n += 1
+
+        log.info(f"Queued {n} measurements based on the entered sequences.")
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
