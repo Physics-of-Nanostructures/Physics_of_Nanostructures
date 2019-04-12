@@ -89,10 +89,14 @@ class Sequencer(QtGui.QWidget):
         btn_box.addWidget(add_tree_item_btn)
         btn_box.addWidget(remove_tree_item_btn)
 
+        queue_button = QtGui.QPushButton("Queue sequence")
+        queue_button.clicked.connect(self.queue_sequence)
+
         vbox = QtGui.QVBoxLayout(self)
         vbox.setSpacing(6)
         vbox.addWidget(self.tree)
         vbox.addLayout(btn_box)
+        vbox.addWidget(queue_button)
         self.setLayout(vbox)
 
     def _add_tree_item(self):
@@ -142,13 +146,10 @@ class Sequencer(QtGui.QWidget):
     def _add_to_interface(self):
         sequencer_dock = QtGui.QWidget()
         sequencer_vbox = QtGui.QVBoxLayout()
-        sequencer_button = QtGui.QPushButton("Queue sequence")
-        sequencer_button.clicked.connect(self.queue_sequence)
 
         hbox = QtGui.QHBoxLayout()
         hbox.setSpacing(10)
         hbox.setContentsMargins(-1, 6, -1, 6)
-        hbox.addWidget(sequencer_button)
         hbox.addStretch()
 
         sequencer_vbox.addWidget(self)
