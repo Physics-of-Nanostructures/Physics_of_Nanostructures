@@ -142,8 +142,8 @@ class Sequencer(QtGui.QWidget):
     def _add_to_interface(self):
         sequencer_dock = QtGui.QWidget()
         sequencer_vbox = QtGui.QVBoxLayout()
-        sequencer_button = QtGui.QPushButton("Generate sequence")
-        sequencer_button.clicked.connect(self.generate_sequence)
+        sequencer_button = QtGui.QPushButton("Queue sequence")
+        sequencer_button.clicked.connect(self.queue_sequence)
 
         hbox = QtGui.QHBoxLayout()
         hbox.setSpacing(10)
@@ -161,7 +161,28 @@ class Sequencer(QtGui.QWidget):
         dock.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
         self._parent.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
 
-    def generate_sequence(self):
+    def queue_sequence(self):
+        sequences = self._generate_sequence_from_tree()
+
+        for sequence in sequences:
+            parameters = [item['parameter'] for item in sequence]
+            value_list = [item['sequence'] for item in sequence]
+
+            try:
+                combinations = product(*value_list)
+            except TypeError:
+                log.error(
+                    "TypeError, likely no sequence for one of the parameters")
+            else:
+                for combination in combinations:
+                    combi_dict = {key: val for key, val
+                                  in zip(parameters, combination)}
+
+                    procedure = self._parent.make_procedure()
+                    procedure.set_parameters(combi_dict)
+                    self._parent.queue(procedure=procedure)
+
+    def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
         sequences = []
         current_sequence = []
