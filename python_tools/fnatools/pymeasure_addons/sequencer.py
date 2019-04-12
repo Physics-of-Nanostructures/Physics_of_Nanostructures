@@ -191,47 +191,8 @@ class Sequencer(QtGui.QWidget):
 
         print(sequences)
 
-    def generate_sequence_v0(self):
-        root = self.tree.invisibleRootItem()
-        sequence_list = []
 
-        for main_child_idx in range(root.childCount()):
-            sequence = self.get_underlying_sequence(root.child(main_child_idx))
-            sequence_list.append(sequence)
-        pprint(sequence_list)
 
-    def get_underlying_sequence(self, item, parent_sequence=None):
-        depth = self._depth_of_child(item)
-        name = self.tree.itemWidget(item, 1).currentText()
-        param = self.names_inv[name]
-        sequence = {
-            'parameter': param,
-            'sequence': self.eval_string(self.tree.itemWidget(item, 2).text(),
-                                         name, depth),
-        }
-
-        if parent_sequence is None:
-            parent_sequence = []
-
-        parent_sequence.append(sequence)
-
-        if item.childCount() == 0:
-            return parent_sequence
-
-        child_sequences = []
-        for child_idx in range(item.childCount()):
-            child_sequence = self.get_underlying_sequence(
-                item.child(child_idx),
-                parent_sequence)
-            if isinstance(child_sequence[0], list) or item.parent() is None:
-                child_sequences.append(*child_sequence)
-            else:
-                child_sequences.append(child_sequence)
-
-        # if len(child_sequences) == 1:
-        #     child_sequences = child_sequences[0]
-
-        return child_sequences
 
     @staticmethod
     def _depth_of_child(item):
