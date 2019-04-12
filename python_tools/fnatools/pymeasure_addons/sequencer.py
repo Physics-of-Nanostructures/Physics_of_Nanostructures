@@ -180,8 +180,10 @@ class Sequencer(QtGui.QWidget):
 
             current_sequence.append({
                 'parameter': self.names_inv[name],
-                'sequence': self.eval_string(self.tree.itemWidget(item, 2).text(),
-                                         name, depth),
+                'sequence': self.eval_string(
+                    self.tree.itemWidget(item, 2).text(),
+                    name, depth
+                ),
             })
 
             iterator += 1
@@ -189,7 +191,7 @@ class Sequencer(QtGui.QWidget):
 
         print(sequences)
 
-    def generate_sequence(self):
+    def generate_sequence_v0(self):
         root = self.tree.invisibleRootItem()
         sequence_list = []
 
