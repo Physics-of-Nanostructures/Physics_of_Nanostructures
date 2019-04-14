@@ -6,6 +6,7 @@ from pymeasure.display.Qt import QtCore, QtGui
 
 import numpy as np
 from itertools import product
+from collections import ChainMap
 from pprint import pprint
 
 SAFE_FUNCTIONS = {
@@ -45,6 +46,7 @@ SAFE_FUNCTIONS = {
 
 
 class Sequencer(QtGui.QWidget):
+    MAXDEPTH = 5
 
     def __init__(self, parent, inputs=None):
         super().__init__(parent)
@@ -163,61 +165,88 @@ class Sequencer(QtGui.QWidget):
         self._parent.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
 
     def queue_sequence(self):
-        sequences = self._generate_sequence_from_tree()
+        sequence = self._generate_sequence_from_tree()
         n = 0
 
-        for sequence in sequences:
-            parameters = [item['parameter'] for item in sequence]
-            value_list = [item['sequence'] for item in sequence]
+        print(sequence)
+        for entry in sequence:
+            parameters = dict(ChainMap(*entry[::-1]))
 
-            try:
-                combinations = product(*value_list)
-            except TypeError:
-                log.error(
-                    "TypeError, likely no sequence for one of the parameters")
-            else:
-                for combination in combinations:
-                    combi_dict = {key: val for key, val
-                                  in zip(parameters, combination)}
-
-                    procedure = self._parent.make_procedure()
-                    procedure.set_parameters(combi_dict)
-                    self._parent.queue(procedure=procedure)
-                    n += 1
+            procedure = self._parent.make_procedure()
+            procedure.set_parameters(parameters)
+            self._parent.queue(procedure=procedure)
+            n += 1
 
         log.info(f"Queued {n} measurements based on the entered sequences.")
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
         sequences = []
-        current_sequence = []
+        current_sequence = [[] for i in range(self.MAXDEPTH)]
+        temp_sequence = [[] for i in range(self.MAXDEPTH)]
 
         while iterator.value():
             item = iterator.value()
             depth = self._depth_of_child(item)
 
             name = self.tree.itemWidget(item, 1).currentText()
+            parameter = self.names_inv[name]
+            values = self.eval_string(
+                self.tree.itemWidget(item, 2).text(),
+                name, depth,
+            )
 
-            current_sequence.append({
-                'parameter': self.names_inv[name],
-                'sequence': self.eval_string(
-                    self.tree.itemWidget(item, 2).text(),
-                    name, depth
-                ),
-            })
+            try:
+                sequence_entry = [{parameter: value} for value in values]
+            except TypeError:
+                log.error(
+                    "TypeError, likely no sequence for one of the parameters"
+                )
+            else:
+                current_sequence[depth].extend(sequence_entry)
+
+            # pprint(current_sequence)
+            # pprint(temp_sequence)
 
             iterator += 1
             next_depth = self._depth_of_child(iterator.value())
 
-            if next_depth <= depth:
-                sequences.append(current_sequence)
-                current_sequence = current_sequence[:next_depth - 1]
+            for depth_idx in range(depth, next_depth, -1):
+                temp_sequence[depth_idx].extend(current_sequence[depth_idx])
+
+                if depth_idx != 0:
+                    sequence_products = list(product(
+                        current_sequence[depth_idx - 1],
+                        temp_sequence[depth_idx]
+                    ))
+
+                    if isinstance(sequence_products[0][1], tuple):
+                        sequence_products = [
+                            (v1, *v2) for (v1, v2) in sequence_products
+                        ]
+
+                    temp_sequence[depth_idx - 1].extend(sequence_products)
+                    temp_sequence[depth_idx] = []
+
+                current_sequence[depth_idx] = []
+                current_sequence[depth_idx - 1] = []
+
+        sequences = temp_sequence[0]
+
+        for idx in range(len(sequences)):
+            print(idx, sequences[idx], isinstance(sequences[idx], tuple))
+            if not isinstance(sequences[idx], tuple):
+                sequences[idx] = (sequences[idx],)
+
+        # print("\nfinal:")
+        # pprint(temp_sequence)
+        # pprint(sequences)
 
         return sequences
 
     @staticmethod
     def _depth_of_child(item):
-        depth = 0
+        depth = -1
         while item:
             item = item.parent()
             depth += 1
