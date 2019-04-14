@@ -7,7 +7,6 @@ from pymeasure.display.Qt import QtCore, QtGui
 import numpy as np
 from itertools import product
 from collections import ChainMap
-from pprint import pprint
 
 SAFE_FUNCTIONS = {
     'range': range,
@@ -168,7 +167,6 @@ class Sequencer(QtGui.QWidget):
         sequence = self._generate_sequence_from_tree()
         n = 0
 
-        print(sequence)
         for entry in sequence:
             parameters = dict(ChainMap(*entry[::-1]))
 
@@ -205,9 +203,6 @@ class Sequencer(QtGui.QWidget):
             else:
                 current_sequence[depth].extend(sequence_entry)
 
-            # pprint(current_sequence)
-            # pprint(temp_sequence)
-
             iterator += 1
             next_depth = self._depth_of_child(iterator.value())
 
@@ -241,13 +236,8 @@ class Sequencer(QtGui.QWidget):
         sequences = temp_sequence[0]
 
         for idx in range(len(sequences)):
-            print(idx, sequences[idx], isinstance(sequences[idx], tuple))
             if not isinstance(sequences[idx], tuple):
                 sequences[idx] = (sequences[idx],)
-
-        # print("\nfinal:")
-        # pprint(temp_sequence)
-        # pprint(sequences)
 
         return sequences
 
