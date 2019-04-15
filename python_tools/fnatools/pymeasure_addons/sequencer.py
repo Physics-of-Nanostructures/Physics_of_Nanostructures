@@ -114,7 +114,8 @@ class Sequencer(QtGui.QWidget):
         comboBox.addItems(list(sorted(self.names_inv.keys())))
 
         item = QtGui.QTreeWidgetItem(parent, [""])
-        item.setText(0, f"{self._depth_of_child(item):d}")
+        depth = self._depth_of_child(item)
+        item.setText(0, "{:d}".format(depth))
 
         self.tree.setItemWidget(item, 1, comboBox)
         self.tree.setItemWidget(item, 2, lineEdit)
@@ -175,7 +176,7 @@ class Sequencer(QtGui.QWidget):
             self._parent.queue(procedure=procedure)
             n += 1
 
-        log.info(f"Queued {n} measurements based on the entered sequences.")
+        log.info("Queued {:d} measurements based on the entered sequences.".format(n))
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
@@ -259,16 +260,16 @@ class Sequencer(QtGui.QWidget):
                 )
             except TypeError:
                 log.error("TypeError, likely a typo in one of the " +
-                          f"functions for parameter {name}, depth {depth}")
+                          "functions for parameter {}, depth {}".format(name, depth))
             except SyntaxError:
                 log.error("SyntaxError, likely unbalanced brackets " +
-                          f"for parameter {name}, depth {depth}")
+                          "for parameter {}, depth {}".format(name, depth))
             except ValueError:
                 log.error("ValueError, likely wrong function argument " +
-                          f"for parameter {name}, depth {depth}")
+                          "for parameter {}, depth {}".format(name, depth))
         else:
             log.error("No sequence entered for " +
-                      f"for parameter {name}, depth {depth}")
+                      "for parameter {}, depth {}".format(name, depth))
 
         evaluated_string = np.array(evaluated_string)
         return evaluated_string
