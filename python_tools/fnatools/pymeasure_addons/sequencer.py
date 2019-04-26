@@ -176,7 +176,10 @@ class Sequencer(QtGui.QWidget):
             self._parent.queue(procedure=procedure)
             n += 1
 
-        log.info("Queued {:d} measurements based on the entered sequences.".format(n))
+        log.info(
+            "Queued {:d} measurements based on the entered sequences.".format(
+                n)
+        )
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
@@ -260,7 +263,9 @@ class Sequencer(QtGui.QWidget):
                 )
             except TypeError:
                 log.error("TypeError, likely a typo in one of the " +
-                          "functions for parameter {}, depth {}".format(name, depth))
+                          "functions for parameter {}, depth {}".format(
+                              name, depth
+                          ))
             except SyntaxError:
                 log.error("SyntaxError, likely unbalanced brackets " +
                           "for parameter {}, depth {}".format(name, depth))
