@@ -5,8 +5,9 @@ log.addHandler(logging.NullHandler())
 from pymeasure.display.Qt import QtCore, QtGui
 
 import numpy as np
-from itertools import product
 from collections import ChainMap
+from itertools import product
+from functools import partial
 
 SAFE_FUNCTIONS = {
     'range': range,
@@ -80,13 +81,21 @@ class Sequencer(QtGui.QWidget):
         self.tree.setColumnWidth(1, int(0.9 * width))
         self.tree.setColumnWidth(2, int(0.9 * width))
 
+        add_root_item_btn = QtGui.QPushButton("Add root item")
+        add_root_item_btn.clicked.connect(
+            partial(self._add_tree_item, at_root=True)
+        )
+
         add_tree_item_btn = QtGui.QPushButton("Add item")
-        add_tree_item_btn.clicked.connect(self._add_tree_item)
+        add_tree_item_btn.clicked.connect(
+            partial(self._add_tree_item, at_root=False)
+        )
 
         remove_tree_item_btn = QtGui.QPushButton("Remove item")
         remove_tree_item_btn.clicked.connect(self._remove_selected_tree_item)
 
         btn_box = QtGui.QHBoxLayout()
+        btn_box.addWidget(add_root_item_btn)
         btn_box.addWidget(add_tree_item_btn)
         btn_box.addWidget(remove_tree_item_btn)
 
@@ -100,10 +109,10 @@ class Sequencer(QtGui.QWidget):
         vbox.addWidget(queue_button)
         self.setLayout(vbox)
 
-    def _add_tree_item(self):
+    def _add_tree_item(self, at_root=False):
         selected = self.tree.selectedItems()
 
-        if len(selected) >= 1:
+        if len(selected) >= 1 and not at_root:
             parent = selected[0]
         else:
             parent = self.tree.invisibleRootItem()
