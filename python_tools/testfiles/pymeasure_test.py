@@ -12,7 +12,7 @@ from pymeasure.display.windows import ManagedWindow
 from pymeasure.experiment import Procedure, Results
 from pymeasure.experiment import IntegerParameter, FloatParameter, Parameter
 
-from fnatools.pymeasure_addons import Sequencer
+from fnatools.pymeasure_addons import Sequencer, DeviceController
 
 class RandomProcedure(Procedure):
     iterations = IntegerParameter('Loop Iterations')
@@ -52,6 +52,7 @@ class MainWindow(ManagedWindow):
         )
 
         self.sequencer = Sequencer(self)
+        self.controller = DeviceController(self)
 
         self.setWindowTitle('GUI Example')
 
