@@ -1,15 +1,13 @@
-import matplotlib as mpl
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from pathlib import Path
-from itertools import product
-import datetime
 from lmfit import Model
 from functools import partial
 import re
-from time import sleep, time
 from scipy import integrate
+from uncertainties import ufloat, nominal_value, std_dev
+from uncertainties.core import Variable
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -230,24 +228,46 @@ def average_per_group(dataset, metadata, group_keys):
 
 def correct_angle_per_group(dataset, metadata, group_keys, ):
 
-    # def sine(phi, phi_0=0.5, A=1):
-    #     return A * np.sin(np.radians(2 * phi - phi_0))
+    def sine(phi, phi_0=0, A=1):
+        return A * np.sin(2 * (phi - phi_0))
 
-    # model = Model(sine, independent_vars=['phi'])
+    sin_model = Model(sine, independent_vars=['phi'])
+    sin_param = sin_model.make_params()
+    sin_param["phi_0"].set(min=-np.pi / 2, max=+np.pi / 2)
+    sin_param["A"].set(min=0)
 
     def subtract_angle(df):
-        angle = np.radians(df.angle)
+        fit_res = sin_model.fit(
+            df.harmonic_1_x,
+            sin_param,
+            phi=np.radians(df.angle)
+        )
 
-        Is = integrate.simps(df.harmonic_1_x * np.sin(angle * 2), angle)
-        Ic = integrate.simps(df.harmonic_1_x * np.cos(angle * 2), angle)
+        phi_0 = fit_res.params["phi_0"].value
+        phi_0 = np.degrees(phi_0)
 
-        angle_0 = np.degrees(np.arctan(Is / Ic) / 2)
+        # print(phi_0, fit_res.params["A"].value)
+        # df["harmonic_1_fit"] = fit_res.best_fit
 
-        df["angle"] -= angle_0
+        df["angle"] -= phi_0
         df["angle"] = np.mod(df["angle"], 360)
         df.sort_values("angle", inplace=True)
 
         return df
+
+    # def subtract_angle(df):
+    #     angle = np.radians(df.angle)
+
+    #     Is = integrate.simps(df.harmonic_1_x * np.sin(angle * 2), angle)
+    #     Ic = integrate.simps(df.harmonic_1_x * np.cos(angle * 2), angle)
+
+    #     angle_0 = np.degrees(np.arctan(Is / Ic) / 2)
+    #     print(angle_0)
+    #     df["angle"] -= angle_0
+    #     df["angle"] = np.mod(df["angle"], 360)
+    #     df.sort_values("angle", inplace=True)
+
+    #     return df
 
     dataset = dataset.groupby(group_keys, as_index=False).apply(subtract_angle)
 
@@ -256,25 +276,13 @@ def correct_angle_per_group(dataset, metadata, group_keys, ):
     return dataset, metadata
 
 
-def dataset_analysis(dataset, metadata, group_keys, map_fn=map):
-
-    data_groups = dataset.groupby(group_keys)
-
-    data_analysis_fn = partial(
-        data_analysis,
-        group_keys=group_keys,
-    )
-
-    results = list(map_fn(data_analysis_fn, data_groups))
-
-    if not isinstance(group_keys, list) or len(group_keys) == 1:
-        results = {key: result for key, result in
-                   zip(data_groups.groups.keys(), results)}
-
-    return results
+def sort_dataset(dataset, keys, ):
+    dataset.sort_values(keys, inplace=True)
+    dataset.reset_index(drop=True, inplace=True)
+    return dataset
 
 
-def data_analysis(group_item, group_keys=None):
+def data_analysis_unified(group_item, group_keys=None):
     group_values, data = group_item
     if not isinstance(group_values, (list, )):
         group_values = [group_values]
@@ -331,6 +339,9 @@ def data_analysis(group_item, group_keys=None):
         H=data.magnetic_field,
     )
 
+    data["harmonic_1_fit"] = fit_result_h1.best_fit
+    data["harmonic_2_fit"] = fit_result_h2.best_fit
+
     group.update({
         "data": data,
         "h1_fit": fit_result_h1,
@@ -338,6 +349,178 @@ def data_analysis(group_item, group_keys=None):
     })
 
     return group
+
+
+def data_analysis_individual_full(group_item, group_keys=None):
+    group_values, data = group_item
+    if not isinstance(group_values, (list, )):
+        group_values = [group_values]
+
+    group = {key: value for key, value in zip(group_keys, group_values)}
+
+    model_h1 = Model(hall_voltage_function,
+                     independent_vars=["phi", "I_0"])
+
+    params_h1 = model_h1.make_params()
+    params_h1["theta_M"].vary = False
+    params_h1["theta_M0"].vary = False
+    params_h1["R_AHE"].vary = False
+    params_h1["H"].vary = False
+    params_h1["H_A"].vary = False
+    params_h1["phi_E"].vary = False
+    # params_h1["V_0"].vary = False
+
+    fit_result_h1 = model_h1.fit(
+        data["harmonic_1_x"],
+        params_h1,
+        phi=data.angle,
+        I_0=data.current,
+        # H=data.magnetic_field,
+    )
+
+    model_h2 = Model(hall_voltage_2nd_harmonic_function,
+                     independent_vars=["phi", "I_0"])
+
+    params_h2 = model_h2.make_params()
+    # params_h2["Ms"].value = 0.800
+    params_h2["Ms"].vary = False
+    # params_h2["gamma"].value = 1
+    params_h2["gamma"].vary = False
+    # params_h2["R_AHE"].value = 1
+    params_h2["R_AHE"].vary = False
+    # params_h2["V_0"].value = 0
+    # params_h2["V_0"].vary = False
+    params_h2["phi_0"].value = fit_result_h1.params['phi_0']
+    # params_h2["phi_0"].vary = False
+    # params_h2["phi_E"].value = fit_result_h1.params['phi_E']
+    params_h2["phi_E"].vary = False
+    # params_h2["H_A"].value = fit_result_h1.params['H_A']
+    params_h2["H_A"].vary = False
+    params_h2["H"].vary = False
+    # params_h2["R_PHE"].value = fit_result_h1.params['R_PHE']
+    params_h2["R_PHE"].vary = False
+    params_h2["tau_iad"].vary = False
+    params_h2["V_ANE"].vary = False
+
+    fit_result_h2 = model_h2.fit(
+        data["harmonic_2_y"],
+        params_h2,
+        phi=data.angle,
+        I_0=data.current,
+        # H=data.magnetic_field,
+    )
+
+    data["harmonic_1_fit"] = fit_result_h1.best_fit
+    data["harmonic_2_fit"] = fit_result_h2.best_fit
+
+    group.update({
+        "data": data,
+        "h1_fit": fit_result_h1,
+        "h2_fit": fit_result_h2,
+    })
+
+    return group
+
+
+def data_analysis_individual(group_item, group_keys=None):
+    group_values, data = group_item
+    if not isinstance(group_values, (list, tuple, )):
+        group_values = [group_values]
+
+    group = {key: value for key, value in zip(group_keys, group_values)}
+
+    model_h1 = Model(simplified_1st_harmonic,
+                     independent_vars=["phi", "I_0"])
+
+    params_h1 = model_h1.make_params()
+    params_h1["theta"].set(vary=False)
+    params_h1["theta_0"].set(vary=False)
+    params_h1["R_AHE"].set(vary=False)
+
+    fit_result_h1 = model_h1.fit(
+        data["harmonic_1_x"],
+        params_h1,
+        phi=data.angle,
+        I_0=data.current,
+        # H=data.magnetic_field,
+    )
+
+    model_h2 = Model(simplified_2nd_harmonic,
+                     independent_vars=["phi", "I_0"])
+
+    params_h2 = model_h2.make_params()
+
+    params_h2["phi_0"].set(vary=True, value=fit_result_h1.params['phi_0'])
+
+    fit_result_h2 = model_h2.fit(
+        data["harmonic_2_y"],
+        params_h2,
+        phi=data.angle,
+        I_0=data.current,
+        # H=data.magnetic_field,
+    )
+
+    data["harmonic_1_fit"] = fit_result_h1.best_fit
+    data["harmonic_2_fit"] = fit_result_h2.best_fit
+
+    group.update({
+        "data": data,
+        "h1_fit": fit_result_h1,
+        "h2_fit": fit_result_h2,
+    })
+
+    return group
+
+
+def dataset_analysis(dataset, metadata, group_keys,
+                     analysis_fn=data_analysis_unified, map_fn=map):
+
+    data_groups = dataset.groupby(group_keys)
+
+    partial_analysis_fn = partial(
+        analysis_fn,
+        group_keys=group_keys,
+    )
+
+    results_lst = []
+    dataset_lst = []
+
+    for group in map_fn(partial_analysis_fn, data_groups):
+        dataset_lst.append(group["data"])
+        results_lst.append({k: v for k, v in group.items() if not k == "data"})
+
+    dataset = pd.concat(dataset_lst, )
+    dataset.sort_values(group_keys, inplace=True)
+    dataset.reset_index(drop=True, inplace=True)
+
+    # fit_keys = results_lst[0].keys()
+
+    results = pd.DataFrame(
+        results_lst,
+        columns=[*group_keys, "h1_fit", "h2_fit"]
+    )
+    results = results.apply(add_fit_params_to_df, args=["h1_"],
+                            axis=1, result_type="expand")
+    results = results.apply(add_fit_params_to_df, args=["h2_"],
+                            axis=1, result_type="expand")
+
+    results.sort_values(group_keys, inplace=True)
+    results.reset_index(drop=True, inplace=True)
+
+    return dataset, results
+
+
+def add_fit_params_to_df(df, prefix="h1_", use_ufloat=False):
+    params = df[prefix + "fit"].params
+
+    for name, param in params.items():
+        if not use_ufloat:
+            df[prefix + name] = param.value
+            df[prefix + name + "_std"] = param.stderr
+        else:
+            df[prefix + name] = ufloat(param.value, param.stderr)
+
+    return df
 
 
 def normalize(x, x_range):
@@ -362,6 +545,8 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
         if "h2_fit" in group:
             h2_fit = group["h2_fit"]
             # print(h2_fit.fit_report())
+    elif isinstance(data, pd.DataFrame):
+        pass
     else:
         raise NotImplementedError("Other situations not yet implemented")
 
@@ -382,14 +567,20 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
         axes[1].plot(subdata.angle, subdata["harmonic_2_y"] + offset[1],
                      '.', color=color)
 
-        if h1_fit is not None:
+        if "harmonic_1_fit" in subdata:
+            axes[0].plot(subdata.angle, subdata["harmonic_1_fit"] + offset[0],
+                         color=color)
+        elif h1_fit is not None:
             h1 = h1_fit.eval(phi=subdata.angle,
                              H=subdata.magnetic_field,
                              I_0=subdata.current)
             axes[0].plot(subdata.angle, h1 + offset[0],
                          color=color_fit)
 
-        if h2_fit is not None:
+        if "harmonic_2_fit" in subdata:
+            axes[1].plot(subdata.angle, subdata["harmonic_2_fit"] + offset[1],
+                         color=color)
+        elif h2_fit is not None:
             h2 = h2_fit.eval(phi=subdata.angle,
                              H=subdata.magnetic_field,
                              I_0=subdata.current)
@@ -414,14 +605,57 @@ def params_to_dict(params, prefix=""):
 def analysis_results_to_df(results, group_keys):
     fit_params = []
 
-    for key, result in results.items():
-        if len(group_keys) == 1:
-            param_dict = {group_keys[0]: key}
-        param_dict.update({
-            **params_to_dict(result["h1_fit"].params, "h1_"),
-            **params_to_dict(result["h2_fit"].params, "h2_"),
-        })
+    if isinstance(results, dict):
+        for key, result in results.items():
+            if len(group_keys) == 1:
+                param_dict = {group_keys[0]: key}
+            param_dict.update({
+                **params_to_dict(result["h1_fit"].params, "h1_"),
+                **params_to_dict(result["h2_fit"].params, "h2_"),
+            })
 
-        fit_params.append(param_dict)
+            fit_params.append(param_dict)
+    elif isinstance(results, list):
+        for result in results:
+            print(result)
+    else:
+        raise NotImplementedError("Results is neither List or Dict")
 
     return pd.DataFrame(fit_params)
+
+
+def plot_fit_results(results, group_key="temperature_sp",
+                     plot_keys=[], x_key="magnetic_field",):
+    fig, axs = plt.subplots(len(plot_keys), 1, sharex=True)
+
+    if group_key is not None:
+        key_range = results[group_key].agg(["min", "max"])
+
+        for key, result in results.groupby(group_key):
+            for idx, plkey in enumerate(plot_keys):
+                cnorm = normalize(key, key_range)
+                c = (cnorm, 0, 1 - cnorm)
+
+                if x_key in result:
+                    x = result[x_key]
+                else:
+                    x = result.eval(x_key)
+
+                if plkey in result:
+                    y = result[plkey]
+                else:
+                    y = result.eval(plkey)
+
+                if plkey + "_std" in result:
+                    y_error = result[plkey + "_std"]
+                elif isinstance(y.iloc[0], Variable):
+                    y = y.agg(nominal_value)
+                    y_error = y.agg(std_dev)
+                else:
+                    y_error = None
+
+                axs[idx].errorbar(
+                    x, y, y_error,
+                    marker='.', ls='-', c=c,
+                    label=f"{key}"
+                )

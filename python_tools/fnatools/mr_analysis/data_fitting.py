@@ -92,13 +92,13 @@ def hall_voltage_2nd_harmonic_function(phi, phi_0=0, I_0=1, R_PHE=1,
     gamma : float
         Gyromagnetic ratio (unit unknown)
     tau_ofl : float
-        out-of-plane field-like torque (tau_S in paper)
+        out-of-plane field-like torque (tau_A in paper)
     tau_iad : float
         in-plane damping-like torque (tau_B in paper)
     tau_oad : float
         out-of-plane damping-like torque (not specified in paper)
     tau_ifl : float
-        in-plane field-like torque (tau_A in paper)
+        in-plane field-like torque (tau_S in paper)
 
     Returns
     -------
@@ -306,9 +306,9 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
         out-of-plane angle offset (degrees)
     I_0 : float
         Measurement current (A)
-    R_PHE_FL : float
+    R_PHE : float
         Planar-Hall resistance (Ohm)
-    R_AHE_DL : float
+    R_AHE : float
         Anomalous-Hall resistance (Ohm)
     V_0: float
         Offset voltage (V)
