@@ -246,9 +246,6 @@ def correct_angle_per_group(dataset, metadata, group_keys, ):
         phi_0 = fit_res.params["phi_0"].value
         phi_0 = np.degrees(phi_0)
 
-        # print(phi_0, fit_res.params["A"].value)
-        # df["harmonic_1_fit"] = fit_res.best_fit
-
         df["angle"] -= phi_0
         df["angle"] = np.mod(df["angle"], 360)
         df.sort_values("angle", inplace=True)
@@ -442,7 +439,6 @@ def data_analysis_individual(group_item, group_keys=None):
         params_h1,
         phi=data.angle,
         I_0=data.current,
-        # H=data.magnetic_field,
     )
 
     model_h2 = Model(simplified_2nd_harmonic,
@@ -450,14 +446,13 @@ def data_analysis_individual(group_item, group_keys=None):
 
     params_h2 = model_h2.make_params()
 
-    params_h2["phi_0"].set(vary=True, value=fit_result_h1.params['phi_0'])
+    # params_h2["phi_0"].set(vary=True, value=fit_result_h1.params['phi_0'])
 
     fit_result_h2 = model_h2.fit(
         data["harmonic_2_y"],
         params_h2,
         phi=data.angle,
         I_0=data.current,
-        # H=data.magnetic_field,
     )
 
     data["harmonic_1_fit"] = fit_result_h1.best_fit
@@ -492,8 +487,6 @@ def dataset_analysis(dataset, metadata, group_keys,
     dataset = pd.concat(dataset_lst, )
     dataset.sort_values(group_keys, inplace=True)
     dataset.reset_index(drop=True, inplace=True)
-
-    # fit_keys = results_lst[0].keys()
 
     results = pd.DataFrame(
         results_lst,
@@ -533,7 +526,6 @@ def normalize(x, x_range):
 def plot_measurements(data, subgroup_key=None, key_range=None):
     h1_fit = None
     h2_fit = None
-    # print(data)
 
     if isinstance(data, dict):
         group = data
@@ -602,7 +594,7 @@ def params_to_dict(params, prefix=""):
     return param_dict
 
 
-def analysis_results_to_df(results, group_keys):
+def analysis_results_to_df(results, group_keys: list):
     fit_params = []
 
     if isinstance(results, dict):
@@ -624,9 +616,108 @@ def analysis_results_to_df(results, group_keys):
     return pd.DataFrame(fit_params)
 
 
+def normalize_f1_results(results_f1: pd.DataFrame):
+    results_f1.rename(columns={
+        "h2_R_PHE_DL": "h2_R_PHE_DL_u",
+        "h2_R_PHE_DL_std": "h2_R_PHE_DL_u_std",
+        "h2_R_PHE_FL": "h2_R_PHE_FL_u",
+        "h2_R_PHE_FL_std": "h2_R_PHE_FL_u_std",
+    }, inplace=True)
+
+    results_f1.eval("h2_R_PHE_DL = h2_R_PHE_DL_u / h1_R_PHE", inplace=True)
+    results_f1.eval("h2_R_PHE_FL = h2_R_PHE_FL_u / h1_R_PHE", inplace=True)
+
+    results_f1.eval(
+        "h2_R_PHE_DL_std = h2_R_PHE_DL * sqrt(" +
+        "(h2_R_PHE_DL_u_std / h2_R_PHE_DL_u)**2 + " +
+        "(h1_R_PHE_std / h1_R_PHE)**2)",
+        inplace=True)
+    results_f1.eval(
+        "h2_R_PHE_FL_std = h2_R_PHE_FL * sqrt(" +
+        "(h2_R_PHE_FL_u_std / h2_R_PHE_FL_u)**2 + " +
+        "(h1_R_PHE_std / h1_R_PHE)**2)",
+        inplace=True)
+
+    return results_f1
+
+
+def results_f1_analysis(results_f1: pd.DataFrame,
+                        group_key: str = "temperature_sp",
+                        min_field: float = 0):
+    results_f1["H"] = results_f1["magnetic_field"] / (4 * np.pi * 1e-7)
+    f1_grouped = results_f1.groupby(group_key, sort=False)
+
+    results_lst = []
+    dataset_lst = []
+
+    model = Model(simplified_torque_field_dependence)
+    params_PHE = model.make_params()
+    params_PHE["tau"].value = 0.1
+    params_PHE["Ms"].vary = False
+    params_PHE["Ms"].value = 0
+    params_PHE["tau_0"].vary = True
+    params_PHE["tau_0"].value = 0
+
+    params_AHE = model.make_params()
+    params_AHE["tau"].value = 1
+    params_AHE["Ms"].value = 1
+    params_AHE["tau_0"].value = 1
+
+    for key, data in f1_grouped:
+        idx = data["magnetic_field"] >= min_field
+
+        tau_a_fit = model.fit(
+            data["h2_R_PHE_FL"][idx], params_PHE, H=data.H[idx]
+        )
+        tau_b_fit = model.fit(
+            data["h2_R_PHE_DL"][idx], params_PHE, H=data.H[idx]
+        )
+        tau_s_fit = model.fit(
+            data["h2_R_AHE_DL"][idx], params_AHE, H=data.H[idx]
+        )
+
+        data.loc[idx, "h2_R_PHE_FL_fit"] = tau_a_fit.best_fit
+        data.loc[idx, "h2_R_PHE_DL_fit"] = tau_b_fit.best_fit
+        data.loc[idx, "h2_R_AHE_DL_fit"] = tau_s_fit.best_fit
+
+        dataset_lst.append(data)
+        results_lst.append({
+            group_key: key,
+            "tau_a_fit": tau_a_fit,
+            "tau_b_fit": tau_b_fit,
+            "tau_s_fit": tau_s_fit,
+        })
+
+    results_f1 = pd.concat(dataset_lst, )
+    results_f1.sort_values(group_key, inplace=True)
+    results_f1.reset_index(drop=True, inplace=True)
+
+    results_f2 = pd.DataFrame(
+        results_lst,
+        columns=[group_key, "tau_a_fit", "tau_b_fit", "tau_s_fit"],
+    )
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_a_"],
+                                  axis=1, result_type="expand")
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_b_"],
+                                  axis=1, result_type="expand")
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_s_"],
+                                  axis=1, result_type="expand")
+    results_f2.sort_values(group_key, inplace=True)
+    results_f2.reset_index(drop=True, inplace=True)
+
+    return results_f1, results_f2
+
+
 def plot_fit_results(results, group_key="temperature_sp",
-                     plot_keys=[], x_key="magnetic_field",):
-    fig, axs = plt.subplots(len(plot_keys), 1, sharex=True)
+                     plot_keys=[], x_key="magnetic_field",
+                     single_axis=False):
+    results.sort_values(x_key, inplace=True)
+
+    if not single_axis:
+        fig, axs = plt.subplots(len(plot_keys), 1, sharex=True)
+    else:
+        fig, ax = plt.subplots(1, 1)
+        axs = [ax] * len(plot_keys)
 
     if group_key is not None:
         key_range = results[group_key].agg(["min", "max"])
@@ -654,8 +745,60 @@ def plot_fit_results(results, group_key="temperature_sp",
                 else:
                     y_error = None
 
+                if plkey + "_fit" in result:
+                    y_plot = result[plkey + '_fit']
+                    ls_y = ''
+                else:
+                    y_plot = None
+                    ls_y = '-'
+
                 axs[idx].errorbar(
                     x, y, y_error,
-                    marker='.', ls='-', c=c,
+                    marker='.', ls=ls_y, c=c,
                     label=f"{key}"
                 )
+
+                if y_plot is not None:
+                    axs[idx].plot(x, y_plot, color=c)
+    else:
+        result = results
+        for idx, plkey in enumerate(plot_keys):
+
+            if x_key in result:
+                x = result[x_key]
+            else:
+                x = result.eval(x_key)
+
+            if plkey in result:
+                y = result[plkey]
+            else:
+                y = result.eval(plkey)
+
+            if plkey + "_std" in result:
+                y_error = result[plkey + "_std"]
+            elif isinstance(y.iloc[0], Variable):
+                y = y.agg(nominal_value)
+                y_error = y.agg(std_dev)
+            else:
+                y_error = None
+
+            if plkey + "_fit" in result:
+                y_plot = result[plkey + '_fit']
+                ls_y = ''
+            else:
+                y_plot = None
+                ls_y = '-'
+
+            axs[idx].errorbar(
+                x, y, y_error,
+                marker='.', ls=ls_y,
+                label=f"{plkey}"
+            )
+
+            if y_plot is not None:
+                axs[idx].plot(x, y_plot)
+
+    if single_axis:
+        axs = ax
+
+    return fig, axs
