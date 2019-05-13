@@ -8,8 +8,21 @@ import re
 from scipy import integrate
 from uncertainties import ufloat, nominal_value, std_dev
 from uncertainties.core import Variable
+from dataclasses import dataclass
+import typing
 from .import_measurements import pyMeasurement
 from .data_fitting import *
+
+@dataclass
+class hallMeasurement:
+    folder: str = "./"
+    file_name_format: str = "*.txt"
+    map_fn: map = map
+    min_length: int = 0
+    angle_offset: float = 0.
+
+    def __post_init__(self):
+        pass
 
 
 def import_multiple_data(folder, filenames, map_fn=map, min_length=None):
@@ -664,6 +677,7 @@ def results_f1_analysis(results_f1: pd.DataFrame,
     params_AHE["tau_0"].value = 1
 
     for key, data in f1_grouped:
+        data = data.copy(deep=True)
         idx = data["magnetic_field"] >= min_field
 
         tau_a_fit = model.fit(
@@ -676,9 +690,9 @@ def results_f1_analysis(results_f1: pd.DataFrame,
             data["h2_R_AHE_DL"][idx], params_AHE, H=data.H[idx]
         )
 
-        data.loc[idx, "h2_R_PHE_FL_fit"] = tau_a_fit.best_fit
-        data.loc[idx, "h2_R_PHE_DL_fit"] = tau_b_fit.best_fit
-        data.loc[idx, "h2_R_AHE_DL_fit"] = tau_s_fit.best_fit
+        data["h2_R_PHE_FL_fit"] = tau_a_fit.eval(H=data.H)
+        data["h2_R_PHE_DL_fit"] = tau_b_fit.eval(H=data.H)
+        data["h2_R_AHE_DL_fit"] = tau_s_fit.eval(H=data.H)
 
         dataset_lst.append(data)
         results_lst.append({
