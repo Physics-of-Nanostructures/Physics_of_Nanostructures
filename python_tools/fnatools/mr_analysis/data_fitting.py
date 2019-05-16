@@ -286,7 +286,7 @@ def fit_hall_voltage(data, V_column="Lock_In_1_X", I0=1e-3, harmonic=1):
     return result
 
 
-def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
+def simplified_1st_harmonic(phi=0, phi_0=0, theta=90, theta_0=0,
                             I_0=1, R_PHE=1, R_AHE=1, V_0=0):
     """
     Calculate the first harmonic hall voltage based on
@@ -320,7 +320,6 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
     """
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
     theta_M = numpy.radians(theta) - numpy.radians(theta_0)
-
     C_PHE = numpy.sin(phi_M * 2) * numpy.sin(theta_M)**2
     C_AHE = numpy.cos(theta_M)
 
@@ -329,7 +328,7 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
     return V1_H
 
 
-def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
+def simplified_2nd_harmonic(phi=0, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
                             R_AHE_DL=1, V_0=0):
     """
     Calculate the second harmonic hall voltage based on equation (2) from
