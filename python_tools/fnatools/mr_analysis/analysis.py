@@ -133,8 +133,7 @@ class hallMeasurement:
             plot_measurements(result, "magnetic_field")
             plt.gcf().suptitle(f"Temperature = {key:3.0f} K")
 
-    def plot_results(self, keys_h1: dict=None, keys_h2: dict=None,
-                     save=True):
+    def plot_results(self, keys_h1: dict=None, keys_h2: dict=None, save=True):
         if self.results_f1 is not None:
             if keys_h1 is not None:
                 plot_keys = keys_h1
@@ -192,9 +191,7 @@ class hallMeasurement:
                             transparent=True)
 
     # Functions
-    def mask_data(self, Data=None,
-                  mask_angles=[90, 270],
-                  mask_width=20):
+    def mask_data(self, Data=None, mask_angles=[90, 270], mask_width=20):
         if Data is not None:
             self.Data = Data
 
@@ -246,7 +243,7 @@ class hallMeasurement:
 
         return self.results_f1
 
-    def substitute_columns_f1(self, newData: pd.DataFrame, columns):
+    def substitute_columns_f1(self, newData: pd.DataFrame, columns: list):
         self.results_f1.set_index(
             ["temperature_sp", "magnetic_field"],
             inplace=True
