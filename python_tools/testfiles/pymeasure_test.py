@@ -14,8 +14,11 @@ from pymeasure.experiment import IntegerParameter, FloatParameter, Parameter
 
 from fnatools.pymeasure_addons import Sequencer, DeviceController
 
+from pymeasure.instruments.keithley import Keithley2400
+
+
 class RandomProcedure(Procedure):
-    iterations = IntegerParameter('Loop Iterations')
+    iterations = IntegerParameter('Loop Iterations', default=10)
     delay = FloatParameter('Delay Time', units='s', default=0.2)
     seed = Parameter('Random Seed', default='12345')
 
@@ -52,7 +55,10 @@ class MainWindow(ManagedWindow):
         )
 
         self.sequencer = Sequencer(self)
-        self.controller = DeviceController(self)
+
+        k2400 = Keithley2400("visa://131.155.127.99/GPIB0::2::INSTR")
+        instr_lst = [{"instrument": k2400, "settings": [], "readouts": []}]
+        self.controller = DeviceController(self, instr_lst)
 
         self.setWindowTitle('GUI Example')
 
@@ -72,4 +78,5 @@ if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MainWindow()
     window.show()
+    window.queue()
     sys.exit(app.exec_())
