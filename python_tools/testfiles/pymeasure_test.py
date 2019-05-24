@@ -17,6 +17,8 @@ from pymeasure.experiment import IntegerParameter, FloatParameter, Parameter
 from fnatools.pymeasure_addons import Sequencer, DeviceController
 
 from pymeasure.instruments.keithley import Keithley2400
+from pymeasure.instruments.oxfordinstruments import ITC503
+from pymeasure.instruments.srs import SR830
 
 
 class RandomProcedure(Procedure):
@@ -58,9 +60,23 @@ class MainWindow(ManagedWindow):
 
         self.sequencer = Sequencer(self)
 
-        k2400 = Keithley2400("visa://131.155.127.99/GPIB0::2::INSTR")
-        instr_lst = [{"instrument": k2400, "settings": [], "readouts": []}]
-        self.controller = DeviceController(self, instr_lst)
+        # k2400 = Keithley2400("visa://131.155.127.99/GPIB0::2::INSTR")
+        # k2400 = Keithley2400("visa://phys8173.campus.tue.nl/GPIB0::2::INSTR")
+        # ITC = ITC503("visa://phys8173.campus.tue.nl/GPIB0::24::INSTR")
+
+        # self.C1 = DeviceController(self, k2400,
+        #                            settings=["source_voltage"],
+        #                            readouts=["current"],
+        #                            )
+        # self.C2 = DeviceController(self, ITC,
+        #                            settings=["temperature_setpoint"],
+        #                            readouts=["temperature_1"],
+        #                            )
+        SRS = SR830("visa://131.155.127.99/GPIB0::1::INSTR")
+        self.C3 = DeviceController(self, SRS,
+                                   settings=["sine_voltage"],
+                                   readouts=["x", "y"],
+                                   )
 
         self.setWindowTitle('GUI Example')
 

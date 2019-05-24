@@ -12,44 +12,36 @@ from time import sleep
 
 
 class DeviceController(QtGui.QWidget):
-    def __init__(self, parent, instrument_list=None):
+    readout_outputs = dict()
+
+    def __init__(self, parent,
+                 instrument,
+                 settings=None,
+                 readouts=None,
+                 ):
         super().__init__(parent)
         self._parent = parent
 
-        self.instrument_list = instrument_list
+        self.instrument = instrument
+        self.settings = settings
+        self.readouts = readouts
 
-        self._generate_layout_for_instruments()
-        self._layout()
+        # self._configure_parent()
+        self._generate_layout()
         self._add_to_interface()
         self._start_update_loop()
 
-    def _generate_layout_for_instruments(self):
-        self.instrument_interfaces = []
+    def _generate_layout(self):
+        layout = QtGui.QFormLayout(self)
 
-        for instr in self.instrument_list:
-            if isinstance(instr, dict):
-                self.instrument_interfaces.append(self._generate_layout(instr))
-            else:
-                raise NotImplementedError(
-                    "Getting a layout from the instrument not yet implemented"
-                )
+        # Readouts
+        for par in self.readouts:
+            display = QtGui.QLCDNumber()
+            layout.addRow(par, display)
 
-    def _generate_layout(self, instrument_dict):
-        insrt = instrument_dict["instrument"]
-        settings = instrument_dict["settings"]
-        readouts = instrument_dict["readouts"]
+            self.readout_outputs[par] = display.display
 
-        layout = QtGui.QFormLayout()
-
-
-        widget = QtGui.QGroupBox("instrument")
-        widget.setLayout(layout)
-
-        return widget
-
-
-    def _layout(self):
-        pass
+        # Settings
 
     def _start_update_loop(self, timeout=1000):
         self.timer = QtCore.QTimer()
@@ -58,26 +50,15 @@ class DeviceController(QtGui.QWidget):
 
     def _update_readouts(self):
         if not self._parent.manager.is_running():
-            print("work")
+            for key, display_fn in self.readout_outputs.items():
+                value = getattr(self.instrument, key)
+                display_fn(value)
 
     def _send_setting(self):
         pass
 
     def _add_to_interface(self):
-        controller_dock = QtGui.QWidget()
-        controller_vbox = QtGui.QVBoxLayout()
-
-        hbox = QtGui.QHBoxLayout()
-        hbox.setSpacing(10)
-        hbox.setContentsMargins(-1, 6, -1, 6)
-        hbox.addStretch()
-
-        controller_vbox.addWidget(self)
-        controller_vbox.addLayout(hbox)
-        controller_vbox.addStretch()
-        controller_dock.setLayout(controller_vbox)
-
-        dock = QtGui.QDockWidget('Device Controller')
-        dock.setWidget(controller_dock)
+        dock = QtGui.QDockWidget(self.instrument.name)
+        dock.setWidget(self)
         dock.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
         self._parent.addDockWidget(QtCore.Qt.TopDockWidgetArea, dock)
