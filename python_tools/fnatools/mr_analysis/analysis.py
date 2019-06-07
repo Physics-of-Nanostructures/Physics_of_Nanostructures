@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
+from matplotlib import collections
 from pathlib import Path
 from lmfit import Model
 from functools import partial
@@ -21,11 +24,14 @@ class hallMeasurement:
     map_fn: map = map
     min_length: int = 401
     angle_offset: float = 0.
+    series_resistance: float = 1e3
+    device_resistance: float = 0
     angle_auto_correct: bool = True
     analyse_and_plot: InitVar[bool] = False
     orientation: str = "PHE"
 
     preprocessed = False
+    standardized = False
     Data: pd.DataFrame = None
     results_f1: pd.DataFrame = None
     results_f2: pd.DataFrame = None
@@ -56,7 +62,10 @@ class hallMeasurement:
     def complement_data(self):
         self.Data, self.MData = sort_out_harmonics(self.Data, self.MData)
         self.Data, self.MData = sort_out_ac_source(self.Data, self.MData)
-        self.Data, self.MData = include_current(self.Data, self.MData, R=1000)
+        self.Data, self.MData = include_current(
+            self.Data, self.MData,
+            R=self.series_resistance + self.device_resistance
+        )
 
     def preprocess_data(self):
         self.Data, self.MData = remove_average_per_group(
@@ -81,7 +90,7 @@ class hallMeasurement:
         )
         self.preprocessed = True
 
-    def full_analysis(self, unified=False, preprocess=True):
+    def full_analysis(self, unified=False, preprocess=True, replacement_AHE=None):
         if preprocess and not self.preprocessed:
             self.preprocess_data()
         if self.orientation == "PHE":
@@ -89,6 +98,8 @@ class hallMeasurement:
                 self.unified_analysis()
             else:
                 self.individual_analysis_f1()
+                if replacement_AHE is not None:
+                    self.substitute_columns_f1(replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
                 self.normalize_f1_results()
                 self.individual_analysis_f2()
         elif self.orientation == "AHE":
@@ -126,24 +137,39 @@ class hallMeasurement:
             map_fn=self.map_fn,
         )
 
-    def plot_data(self):
+    def plot_data(self, T=None, label=""):
         self.Data = sort_dataset(self.Data)
+        plotData = self.Data.copy()
 
-        for key, result in self.Data.groupby("temperature_sp"):
+        if T is not None:
+            if not isinstance(T, (list, tuple, )):
+                T = [T]
+
+            plotData = plotData[plotData["temperature_sp"].isin(T)]
+
+        group = plotData.groupby("temperature_sp")
+
+        for key, result in group:
             plot_measurements(result, "magnetic_field")
-            plt.gcf().suptitle(f"Temperature = {key:3.0f} K")
+            plt.gcf().suptitle(f"{label} Temperature = {key:3.0f} K")
 
-    def plot_results(self, keys_h1: dict=None, keys_h2: dict=None, save=True):
+    def plot_results(self, keys_h1: dict=None, keys_h2: dict=None,
+                     save=True, label=""):
+
+        out = []
         if self.results_f1 is not None:
             if keys_h1 is not None:
                 plot_keys = keys_h1
             else:
+                unit = " Ω"
+                if self.standardized:
+                    unit = ""
                 plot_keys = {
-                    "h1_R_PHE": "R_PHE",
-                    "h1_R_AHE": "R_AHE",
-                    "h2_R_PHE_FL": "R_PHE_FL",
-                    "h2_R_PHE_DL": "R_PHE_DL",
-                    "h2_R_AHE_DL": "R_AHE_DL",
+                    "h1_R_PHE": "R_PHE (Ω)",
+                    "h1_R_AHE": "R_AHE (Ω)",
+                    "h2_R_PHE_FL": "R_PHE_FL" + unit,
+                    "h2_R_PHE_DL": "R_PHE_DL" + unit,
+                    "h2_R_AHE_DL": "R_AHE_DL" + unit,
                 }
             if isinstance(plot_keys, list):
                 plot_keys = {k: k for k in plot_keys}
@@ -156,10 +182,14 @@ class hallMeasurement:
                 x_key="magnetic_field",
                 x_label="Magnetic field (T)",
                 plot_keys=plot_keys)
+            fig.suptitle(label)
 
             if save:
                 fig.savefig(self.path + "fit_h1_results.png",
                             transparent=True)
+
+            out.append(fig)
+            out.append(ax)
 
         if self.results_f2 is not None:
             if keys_h2 is not None:
@@ -181,22 +211,35 @@ class hallMeasurement:
                 self.results_f2, None,
                 x_key="temperature_sp",
                 x_label="Temperature (K)",
-                y_label="Torques",
+                y_label="Torques (A/m)",
                 single_axis=True,
                 plot_keys=plot_keys)
             ax.legend()
-
+            fig.suptitle(label)
             if save:
                 fig.savefig(self.path + "fit_h2_results.png",
                             transparent=True)
+
+            out.append(fig)
+            out.append(ax)
+
+        return out
 
     # Functions
     def mask_data(self, Data=None, mask_angles=[90, 270], mask_width=20):
         if Data is not None:
             self.Data = Data
 
+        # for angle in mask_angles:
+        #     diff = self.Data["angle"] - angle
+        #     diff = np.mod(diff + 180, 360) - 180
+        #     diff = np.abs(diff)
+        #     print(diff <= mask_width)
+
         query_strs = [
-            "abs(angle - {}) > {}".format(angle, mask_width)
+            "abs(((angle - {} + 180) % 360) - 180) > {}".format(
+                angle, mask_width
+            )
             for angle in mask_angles]
         query_str = " and ".join(query_strs)
 
@@ -240,6 +283,8 @@ class hallMeasurement:
             "(h2_R_AHE_DL_u_std / h2_R_AHE_DL_u)**2 + " +
             "(h1_R_AHE_std / h1_R_AHE)**2)",
             inplace=True)
+
+        self.standardized = True
 
         return self.results_f1
 
@@ -721,22 +766,57 @@ def data_analysis_AHE(group_item, group_keys=None):
                      independent_vars=["theta", "I_0"])
 
     params_h1 = model_h1.make_params()
-    params_h1["phi"].set(value=90, vary=False)
+    params_h1["phi"].set(value=60, vary=True, min=0, max=360)
     params_h1["phi_0"].set(value=0, vary=False)
-    params_h1["R_PHE"].set(value=0, vary=False)
+    params_h1["R_PHE"].set(value=1, vary=True)
     params_h1["R_AHE"].set(value=1)
-    params_h1["theta_0"].set(value=0)
+    params_h1["theta_0"].set(value=4, vary=True)
+
+    # model_h1 = Model(simplified_1st_harmonic,
+    #                  independent_vars=["theta", "phi", "I_0"])
+
+    # params_h1 = model_h1.make_params()
+    # params_h1["phi"].set(value=90)
+    # params_h1["phi_0"].set(value=0)
+    # params_h1["R_PHE"].set(value=1)
+    # params_h1["R_AHE"].set(value=1)
+    # params_h1["theta_0"].set(value=0)
+
+    model_h1 = Model(simplified_1st_harmonic_SW,
+                     independent_vars=["theta", "I_0", "B"])
+
+    params_h1 = model_h1.make_params()
+    params_h1["phi"].set(value=60, vary=True) #, min=0, max=360
+    params_h1["phi_0"].set(value=0, vary=False)
+    params_h1["R_PHE"].set(value=1, vary=True)
+    params_h1["R_AHE"].set(value=1)
+    params_h1["theta_0"].set(value=4, vary=True)
+    params_h1["Ms"].set(value=8.6e5, vary=True)
+    params_h1["Ku"].set(value=2.0e5, vary=True)
+    params_h1["Nx"].set(value=-0.1, vary=True, min=-1, max=1)
+    params_h1["Keb"].set(value=-1e5, vary=True)
+    params_h1["theta_eb"].set(value=0, vary=True)
+    params_h1["phi_eb"].set(value=np.pi/2, vary=True)
+    # params_h1["Keb"].set(value=0, vary=False)
+    # params_h1["theta_eb"].set(value=0, vary=False)
+    # params_h1["phi_eb"].set(value=0, vary=False)
 
     fit_result_h1 = model_h1.fit(
         fitdata["harmonic_1_x"],
         params_h1,
-        theta=fitdata.angle,
-        I_0=fitdata.current,
+        theta=np.array(fitdata.angle),
+        # theta=np.degrees(np.arccos(np.cos(np.radians(fitdata.angle))/3)),
+        # phi=fitdata.angle,
+        B=np.array(fitdata.magnetic_field),
+        I_0=np.array(fitdata.current),
     )
 
     data["harmonic_1_fit"] = fit_result_h1.eval(
-        theta=data.angle,
-        I_0=data.current,
+        theta=np.array(data.angle),
+        # theta=np.degrees(np.arccos(np.cos(np.radians(data.angle))/3)),
+        # phi=data.angle,
+        B=np.array(data.magnetic_field),
+        I_0=np.array(data.current),
     )
 
     group.update({
@@ -843,6 +923,7 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
         key_norm = normalize(key, key_range)
         color = (key_norm, 0, 1 - key_norm)
         color_fit = (key_norm, 1, 1 - key_norm)
+        # color_fit = 'k'
 
         axes[0].plot(subdata.angle, subdata["harmonic_1_x"] + offset[0],
                      '.', color=color)
@@ -851,7 +932,7 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
 
         if "harmonic_1_fit" in subdata:
             axes[0].plot(subdata.angle, subdata["harmonic_1_fit"] + offset[0],
-                         color=color)
+                         color=color_fit)
         elif h1_fit is not None:
             h1 = h1_fit.eval(phi=subdata.angle,
                              H=subdata.magnetic_field,
@@ -861,7 +942,7 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
 
         if "harmonic_2_fit" in subdata:
             axes[1].plot(subdata.angle, subdata["harmonic_2_fit"] + offset[1],
-                         color=color)
+                         color=color_fit)
         elif h2_fit is not None:
             h2 = h2_fit.eval(phi=subdata.angle,
                              H=subdata.magnetic_field,
@@ -870,6 +951,23 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
                          color=color_fit)
 
         offset += 2 * np.std(data[["harmonic_1_x", "harmonic_2_y"]])
+
+    if "mask" in subdata:
+        for ax in axes:
+            ymin, ymax = ax.get_ylim()
+            collection = collections.BrokenBarHCollection.span_where(
+                np.array(subdata["angle"]), ymin=ymin, ymax=ymax,
+                where=np.logical_not(subdata["mask"]),
+                facecolor='gray', alpha=0.5, zorder=10
+            )
+            ax.add_collection(collection, autolim=False)
+
+    axes[1].set_xlabel("Angle (°)")
+    axes[0].set_ylabel(r"V$_\mathregular{1ω}$ (V)")
+    axes[1].set_ylabel(r"V$_\mathregular{2ω}$ (V)")
+    axes[0].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    axes[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    axes[1].xaxis.set_major_locator(MultipleLocator(base=60))
 
 
 def params_to_dict(params, prefix=""):
@@ -957,6 +1055,103 @@ def results_f1_analysis(results_f1: pd.DataFrame,
     results_f1 = pd.concat(dataset_lst, )
     results_f1.sort_values(group_key, inplace=True)
     results_f1.reset_index(drop=True, inplace=True)
+
+    results_f2 = pd.DataFrame(
+        results_lst,
+        columns=[group_key, "tau_a_fit", "tau_b_fit", "tau_s_fit"],
+    )
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_a_"],
+                                  axis=1, result_type="expand")
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_b_"],
+                                  axis=1, result_type="expand")
+    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_s_"],
+                                  axis=1, result_type="expand")
+    results_f2.sort_values(group_key, inplace=True)
+    results_f2.reset_index(drop=True, inplace=True)
+
+    return results_f1, results_f2
+
+
+def plot_fit_results(results, group_key="temperature_sp",
+                     plot_keys={}, x_key="magnetic_field",
+                     x_label=None, y_label=None,
+                     single_axis=False):
+    results.sort_values(x_key, inplace=True)
+
+    if isinstance(plot_keys, list):
+        plot_keys = {key: key for key in plot_keys}
+
+    if not single_axis and not len(plot_keys) == 1:
+        fig, axs = plt.subplots(len(plot_keys), 1, sharex=True)
+        for idx, label in enumerate(plot_keys.values()):
+            axs[idx].set_ylabel(label)
+            axs[idx].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    else:
+        fig, ax = plt.subplots(1, 1)
+        axs = [ax] * len(plot_keys)
+        if y_label is not None:
+            ax.set_ylabel(y_label)
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+
+    if x_label is not None:
+        axs[-1].set_xlabel(x_label)
+    elif x_key is not None:
+        axs[-1].set_xlabel(x_key)
+
+    if group_key is not None:
+        key_range = results[group_key].agg(["min", "max"])
+
+        for key, result in results.groupby(group_key):
+            for idx, (plkey, pllabel) in enumerate(plot_keys.items()):
+                cnorm = normalize(key, key_range)
+                c = (cnorm, 0, 1 - cnorm)
+
+                if x_key in result:
+                    x = result[x_key]
+                else:
+                    x = result.eval(x_key)
+
+                if plkey in result:
+                    y = result[plkey]
+                else:
+                    y = result.eval(plkey)
+
+                if plkey + "_std" in result:
+                    y_error = result[plkey + "_std"]
+                elif isinstance(y.iloc[0], Variable):
+                    y = y.agg(nominal_value)
+                    y_error = y.agg(std_dev)
+                else:
+                    y_error = None
+
+                if plkey + "_fit" in result:
+                    y_plot = result[plkey + '_fit']
+                    ls_y = ''
+                else:
+                    y_plot = None
+                    ls_y = '-'
+
+                axs[idx].errorbar(
+                    x, y, y_error,
+                    marker='.', ls=ls_y, c=c,
+                    label=f"{pllabel}"
+                )
+
+                if y_plot is not None:
+                    axs[idx].plot(x, y_plot, color=c)
+    else:
+        result = results
+        for idx, (plkey, pllabel) in enumerate(plot_keys.items()):
+
+            if x_key in result:
+                x = result[x_key]
+            else:
+                x = result.eval(x_key)
+
+            if plkey in result:
+                y = result[plkey]
+            else:
+                y = result.eval(plkey)
 
     results_f2 = pd.DataFrame(
         results_lst,
