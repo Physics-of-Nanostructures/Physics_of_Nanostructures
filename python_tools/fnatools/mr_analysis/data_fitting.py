@@ -7,7 +7,7 @@ import numpy
 from scipy import optimize 
 # import scipy.special
 from lmfit import Model
-from .stoner_wohlfarth_model import StonerWohlfarthModel
+from ..stoner_wohlfarth import StonerWohlfarthModel
 
 def hall_voltage_function(phi, phi_0=0, I_0=1, R_PHE=1, R_AHE=1, V_0=0,
                           H_A=0, H=1, phi_E=0, theta_M=90, theta_M0=0):
