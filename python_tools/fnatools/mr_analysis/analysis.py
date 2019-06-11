@@ -99,7 +99,8 @@ class hallMeasurement:
             else:
                 self.individual_analysis_f1()
                 if replacement_AHE is not None:
-                    self.substitute_columns_f1(replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
+                    self.substitute_columns_f1(
+                        replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
                 self.normalize_f1_results()
                 self.individual_analysis_f2()
         elif self.orientation == "AHE":
@@ -719,11 +720,30 @@ def data_analysis_individual(group_item, group_keys=None):
     params_h1["theta_0"].set(vary=False)
     params_h1["R_AHE"].set(vary=False)
 
+    # model_h1 = Model(simplified_1st_harmonic_SW,
+    #                  independent_vars=["phi", "I_0", "B"])
+
+    # params_h1 = model_h1.make_params()
+    # params_h1["phi_0"].set(value=0, vary=True)
+    # params_h1["R_PHE"].set(value=1, vary=True)
+    # params_h1["R_AHE"].set(value=1)
+    # params_h1["theta"].set(value=0, vary=False)
+    # params_h1["theta_0"].set(value=0, vary=False)
+    # params_h1["Ms"].set(value=8.6e5, vary=True)
+    # params_h1["Ku"].set(value=2.0e5, vary=True)
+    # params_h1["Nx"].set(value=-0.1, vary=True, min=-1, max=1)
+    # params_h1["Keb"].set(value=0, vary=False)
+    # params_h1["theta_eb"].set(value=0, vary=False)
+    # params_h1["phi_eb"].set(value=0, vary=False)
+
     fit_result_h1 = model_h1.fit(
         data["harmonic_1_x"],
         params_h1,
-        phi=data.angle,
-        I_0=data.current,
+        phi=np.array(data.angle),
+        # B=np.array(data.magnetic_field),
+        I_0=np.array(data.current),
+        # phi=data.angle,
+        # I_0=data.current,
     )
 
     model_h2 = Model(simplified_2nd_harmonic,
@@ -786,7 +806,7 @@ def data_analysis_AHE(group_item, group_keys=None):
                      independent_vars=["theta", "I_0", "B"])
 
     params_h1 = model_h1.make_params()
-    params_h1["phi"].set(value=60, vary=True) #, min=0, max=360
+    params_h1["phi"].set(value=60, vary=True)  # , min=0, max=360
     params_h1["phi_0"].set(value=0, vary=False)
     params_h1["R_PHE"].set(value=1, vary=True)
     params_h1["R_AHE"].set(value=1)
@@ -794,9 +814,9 @@ def data_analysis_AHE(group_item, group_keys=None):
     params_h1["Ms"].set(value=8.6e5, vary=True)
     params_h1["Ku"].set(value=2.0e5, vary=True)
     params_h1["Nx"].set(value=-0.1, vary=True, min=-1, max=1)
-    params_h1["Keb"].set(value=-1e5, vary=True)
-    params_h1["theta_eb"].set(value=0, vary=True)
-    params_h1["phi_eb"].set(value=np.pi/2, vary=True)
+    params_h1["Keb"].set(value=0, vary=False)
+    params_h1["theta_eb"].set(value=0, vary=False)
+    params_h1["phi_eb"].set(value=0, vary=False)
     # params_h1["Keb"].set(value=0, vary=False)
     # params_h1["theta_eb"].set(value=0, vary=False)
     # params_h1["phi_eb"].set(value=0, vary=False)

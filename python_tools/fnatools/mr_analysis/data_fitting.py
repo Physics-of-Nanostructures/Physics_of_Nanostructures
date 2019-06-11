@@ -363,8 +363,12 @@ def simplified_1st_harmonic_SW(phi=0, phi_0=0, theta=90, theta_0=0,
         Second-harmonic Hall voltage
     """
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
-    phi_M = numpy.ones(len(theta)) * phi_M
     theta_M = numpy.radians(theta) - numpy.radians(theta_0)
+
+    if isinstance(theta_M, (list, numpy.ndarray)):
+        phi_M = numpy.ones(len(theta_M)) * phi_M
+    elif isinstance(phi_M, (list, numpy.ndarray)):
+        theta_M = numpy.ones(len(phi_M)) * theta_M
 
     model = StonerWohlfarthModel(Ms, Ku, Nx, Keb, theta_eb, phi_eb)
     for idx in range(len(theta_M)):
@@ -372,8 +376,8 @@ def simplified_1st_harmonic_SW(phi=0, phi_0=0, theta=90, theta_0=0,
             model.energy_3D_minimizer,
             [theta_M[idx], phi_M[idx]],
             (theta_M[idx], phi_M[idx], B[idx]),
-            # method="Nelder-Mead",
-            # options={'xatol': 1e-10, 'fatol': 1e-10}
+            method="Nelder-Mead",
+            options={'xatol': 1e-7, 'fatol': 1e-7}
         )
         theta_M[idx], phi_M[idx] = out.x
 
