@@ -99,14 +99,22 @@ class Sequencer(QtGui.QWidget):
         btn_box.addWidget(add_tree_item_btn)
         btn_box.addWidget(remove_tree_item_btn)
 
+        load_seq_button = QtGui.QPushButton("Load sequence")
+        load_seq_button.clicked.connect(self.load_sequence)
+        load_seq_button.setToolTip("Load a sequence from a file.")
+
         queue_button = QtGui.QPushButton("Queue sequence")
         queue_button.clicked.connect(self.queue_sequence)
+
+        btn_box_2 = QtGui.QHBoxLayout()
+        btn_box_2.addWidget(load_seq_button)
+        btn_box_2.addWidget(queue_button)
 
         vbox = QtGui.QVBoxLayout(self)
         vbox.setSpacing(6)
         vbox.addWidget(self.tree)
         vbox.addLayout(btn_box)
-        vbox.addWidget(queue_button)
+        vbox.addLayout(btn_box_2)
         self.setLayout(vbox)
 
     def _add_tree_item(self, at_root=False):
@@ -189,6 +197,15 @@ class Sequencer(QtGui.QWidget):
             "Queued {:d} measurements based on the entered sequences.".format(
                 n)
         )
+
+    def load_sequence(self, *, fileName=None):
+        if fileName is None:
+            fileName, _ = QtGui.QFileDialog.getOpenFileName(self, 'OpenFile')
+
+        if len(fileName) == 0:
+            return
+
+        print(fileName)
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
