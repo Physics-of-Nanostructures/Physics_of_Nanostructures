@@ -369,3 +369,32 @@ def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
                         R_PHE_DL * C_PHE_DL +
                         R_AHE_DL * C_AHE_DL * 0.5)
     return V2_H
+
+
+def simplified_torque_field_dependence(H, Ms=0, tau=0, tau_0=0):
+    """
+    Generalized and simplified field dependence of the torques based on
+    equation (2) from MacNeill et al. (2017) PRB 96, 054450.
+
+    Assumes the magnetization and field direction are identical.
+
+    Parameters
+    ----------
+    H : float or numpy.ndarray
+        Magnetic field strength (A/m)
+    Ms : float
+        Saturation magnetization (A/m)
+    tau : float
+        Torque (A/m)
+    tau_0 : float
+        Effective torque offset (1)
+
+    Returns
+    -------
+    tau_1 : float or numpy.ndarray
+        Effective torque (1)
+    """
+
+    tau_1 = tau_0 + tau / (H + Ms)
+
+    return tau_1
