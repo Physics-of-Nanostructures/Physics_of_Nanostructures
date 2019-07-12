@@ -1,8 +1,10 @@
+import sys
+sys.modules['cloudpickle'] = None
+
 import logging
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
-import sys
 import tempfile
 import random
 from time import sleep
