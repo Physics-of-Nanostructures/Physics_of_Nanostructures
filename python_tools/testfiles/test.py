@@ -15,4 +15,5 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(1, 1)
     ax.plot(B, Mu)
     ax.plot(B, Md)
+
     plt.show()

@@ -209,10 +209,15 @@ def fit_both_harmonics(data, fit_background=True, angle_col="Angle",
             H2pars["V_0"].value = 0
             H2pars["V_0"].vary = False
 
+    try:
+        I_0 = data[current_col]
+    except KeyError:
+        I_0 = 1
+
     resultsH1 = H1.fit(data[Vh1_col],
                        H1pars,
                        phi=data[angle_col],
-                       I_0=data[current_col],
+                       I_0=I_0,
                        H=data[field_col])
 
     if transfer_params is not None and "free" in transfer_params:
@@ -228,7 +233,7 @@ def fit_both_harmonics(data, fit_background=True, angle_col="Angle",
     resultsH2 = H2.fit(data[Vh2_col],
                        H2pars,
                        phi=data[angle_col],
-                       I_0=data[current_col],
+                       I_0=I_0,
                        H=data[field_col])
 
     return resultsH1, resultsH2
@@ -250,7 +255,7 @@ def fit_hall_voltage(data, V_column="Lock_In_1_X", I0=1e-3, harmonic=1):
     params.pretty_print()
 
     # Set initial guess and fix params
-    assert False, "Need to fix the initial values"
+    # assert False, "Need to fix the initial values"
     params["phi_M0"].value = 0
     params["theta_M"].value = 90
     params["theta_M"].vary = False
@@ -281,11 +286,56 @@ def fit_hall_voltage(data, V_column="Lock_In_1_X", I0=1e-3, harmonic=1):
     return result
 
 
-def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
-                            R_AHE=1, V_0=0):
+def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
+                            I_0=1, R_PHE=1, R_AHE=1, V_0=0):
+    """
+    Calculate the first harmonic hall voltage based on
+    MacNeill et al. (2017) PRB 96, 054450.
+
+    Assumes the magnetization and field direction are identical.
+
+    Parameters
+    ----------
+    phi : float or numpy.ndarray
+        in-plane field angle (degrees)
+    phi_0 : float
+        in-plane angle offset (degrees)
+    theta : float or numpy.ndarray
+        out-of-plane field angle (degrees, 0 == along z-axis)
+    theta_0 : float
+        out-of-plane angle offset (degrees)
+    I_0 : float
+        Measurement current (A)
+    R_PHE_FL : float
+        Planar-Hall resistance (Ohm)
+    R_AHE_DL : float
+        Anomalous-Hall resistance (Ohm)
+    V_0: float
+        Offset voltage (V)
+
+    Returns
+    -------
+    V1_H : float or numpy.ndarray
+        Second-harmonic Hall voltage
+    """
+    phi_M = numpy.radians(phi) - numpy.radians(phi_0)
+    theta_M = numpy.radians(theta) - numpy.radians(theta_0)
+
+    C_PHE = numpy.sin(phi_M * 2) * numpy.sin(theta_M)**2
+    C_AHE = numpy.cos(theta_M)
+
+    V1_H = V_0 + I_0 * (R_PHE * C_PHE +
+                        R_AHE * C_AHE)
+    return V1_H
+
+
+def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
+                            R_AHE_DL=1, V_0=0):
     """
     Calculate the second harmonic hall voltage based on equation (2) from
     MacNeill et al. (2017) PRB 96, 054450.
+
+    Assumes the magnetization and field direction are identical.
 
     Parameters
     ----------
@@ -295,10 +345,12 @@ def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
         in-plane angle offset (degrees)
     I_0 : float
         Measurement current (A)
-    R_PHE : float
-        Planar-Hall resistance (Ohm)
-    R_AHE : float
-        Anomalous-Hall resistance (Ohm)
+    R_PHE_FL : float
+        Planar-Hall resistance for FL torque (Ohm)
+    R_PHE_DL : float
+        Planar-Hall resistance for DL torque (Ohm)
+    R_AHE_DL : float
+        Anomalous-Hall resistance for DL torque (Ohm)
     V_0: float
         Offset voltage (V)
 
@@ -309,8 +361,40 @@ def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE=1,
     """
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
 
-    C_AHE = numpy.cos(2 * phi_M) * numpy.cos(phi_M)
-    C_PHE = numpy.cos(phi_M)
+    C_PHE_FL = numpy.cos(2 * phi_M) * numpy.cos(phi_M)
+    C_PHE_DL = numpy.cos(2 * phi_M)
+    C_AHE_DL = numpy.cos(phi_M)
 
-    V2_H = I_0 * (R_PHE * C_PHE + R_AHE * C_AHE) + V_0
+    V2_H = V_0 + I_0 * (R_PHE_FL * C_PHE_FL +
+                        R_PHE_DL * C_PHE_DL +
+                        R_AHE_DL * C_AHE_DL * 0.5)
     return V2_H
+
+
+def simplified_torque_field_dependence(H, Ms=0, tau=0, tau_0=0):
+    """
+    Generalized and simplified field dependence of the torques based on
+    equation (2) from MacNeill et al. (2017) PRB 96, 054450.
+
+    Assumes the magnetization and field direction are identical.
+
+    Parameters
+    ----------
+    H : float or numpy.ndarray
+        Magnetic field strength (A/m)
+    Ms : float
+        Saturation magnetization (A/m)
+    tau : float
+        Torque (A/m)
+    tau_0 : float
+        Effective torque offset (1)
+
+    Returns
+    -------
+    tau_1 : float or numpy.ndarray
+        Effective torque (1)
+    """
+
+    tau_1 = tau_0 + tau / (H + Ms)
+
+    return tau_1
