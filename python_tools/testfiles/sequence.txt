@@ -1,0 +1,3 @@
+- "Delay Time", "arange(0, 10, 1)"
+-- "Loop Iterations", "linspace(1, 10, 120)"
+--- "Random Seed", "linspace(1, 10, 120)"

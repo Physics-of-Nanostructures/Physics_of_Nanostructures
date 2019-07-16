@@ -8,6 +8,7 @@ import numpy as np
 from collections import ChainMap
 from itertools import product
 from functools import partial
+import re
 
 SAFE_FUNCTIONS = {
     'range': range,
@@ -117,13 +118,24 @@ class Sequencer(QtGui.QWidget):
         vbox.addLayout(btn_box_2)
         self.setLayout(vbox)
 
-    def _add_tree_item(self, at_root=False):
+    def _add_tree_item(self, at_root=False,
+                       level=None, parameter=None, sequence=None):
         selected = self.tree.selectedItems()
+
+        if level == 0:
+            at_root = True
 
         if len(selected) >= 1 and not at_root:
             parent = selected[0]
         else:
             parent = self.tree.invisibleRootItem()
+
+        if level is not None and level > 0:
+            p_depth = self._depth_of_child(parent)
+
+            while p_depth > level - 1:
+                parent = parent.parent()
+                p_depth = self._depth_of_child(parent)
 
         comboBox = QtGui.QComboBox()
         lineEdit = QtGui.QLineEdit()
@@ -141,6 +153,18 @@ class Sequencer(QtGui.QWidget):
 
         for selected_item in selected:
             selected_item.setSelected(False)
+
+        if parameter is not None:
+            idx = self.tree.itemWidget(item, 1).findText(parameter)
+            self.tree.itemWidget(item, 1).setCurrentIndex(idx)
+            if idx == -1:
+                log.error(
+                    "Parameter '{}' not found while loading sequence".format(
+                        parameter) + ", probably mistyped."
+                )
+
+        if sequence is not None:
+            self.tree.itemWidget(item, 2).setText(sequence)
 
         item.setSelected(True)
 
@@ -205,7 +229,30 @@ class Sequencer(QtGui.QWidget):
         if len(fileName) == 0:
             return
 
-        print(fileName)
+        content = []
+
+        with open(fileName, "r") as file:
+            content = file.readlines()
+
+        pattern = re.compile("([-]+) \"(.*?)\", \"(.*?)\"")
+        for line in content:
+            line = line.strip()
+            match = pattern.search(line)
+
+            if not match:
+                continue
+
+            level = len(match.group(1)) - 1
+
+            if level < 0:
+                continue
+
+            parameter = match.group(2)
+            sequence = match.group(3)
+
+            at_root = False
+
+            self._add_tree_item(at_root, level, parameter, sequence)
 
     def _generate_sequence_from_tree(self):
         iterator = QtGui.QTreeWidgetItemIterator(self.tree)
