@@ -111,6 +111,7 @@ def fit_hysteresis(data: pandas.DataFrame):
     return output_params, output_errors
 
 
+## DO NOT UPDATE, OBSOLETE
 def background_subtraction(data, keep_uncorrected: bool = False,
                            slope_error: float = 1e-2, edge_points: int = 4,
                            use_field_weights: bool = True):
