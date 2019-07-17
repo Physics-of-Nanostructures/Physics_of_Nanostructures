@@ -48,8 +48,10 @@ class TMM_stack:
             *self.ambient,
             *self.stack,
             *self.substrate,
-            *self.ambient,
         ]
+
+        if len(full_stack[-1]) == 3:
+            full_stack.append(*self.ambient)
 
         self.layers_materials = []
         self.layers_thickness = []
@@ -97,6 +99,9 @@ class TMM_stack:
                     coh_tmm_data
                 )['absor']
             )
+
+        self.transmission = coh_tmm_data["T"]
+        self.reflection = coh_tmm_data["R"]
 
     def plot(self, *, ax=None, show_layers=True, label=None):
         if ax is None:
