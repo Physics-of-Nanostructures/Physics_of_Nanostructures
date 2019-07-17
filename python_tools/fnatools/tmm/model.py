@@ -18,7 +18,7 @@ class TMM_stack:
     )
 
     back_to_front: bool = True
-    back_illumniation: bool = True
+    back_illumination: bool = True
     θ0: float = 0
     λ0: float = 800
     polarisation: str = "p"
@@ -88,7 +88,8 @@ class TMM_stack:
 
         self.T_step = 0.01
         self.T = np.arange(-self.plot_margin_l,
-                           self.total_thickness + self.plot_margin_r + self.T_step,
+                           self.total_thickness + self.plot_margin_r +
+                           self.T_step,
                            self.T_step)  # position in structure
 
         self.absorption = np.zeros(len(self.T))
