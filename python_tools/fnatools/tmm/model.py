@@ -58,6 +58,7 @@ class TMM_stack:
         self.layers_materials = []
         self.layers_thickness = []
         self.layers_refractive = []
+        self.layers_label = []
 
         for idx, layer in enumerate(full_stack):
             material = layer[0]
