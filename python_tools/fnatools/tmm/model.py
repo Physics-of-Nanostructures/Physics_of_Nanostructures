@@ -28,6 +28,7 @@ class TMM_stack:
     plot_margin_r: float = 2
 
     _prepared_layers = False
+    _prepared_d_resolved = False
     _colormap = {}
     _sourcemap = ["gray", "red", "blue", "orange", "green",
                   "magenta", "cyan", "yellow", "purple", ]
@@ -55,10 +56,9 @@ class TMM_stack:
         if len(full_stack[-1]) == 3:
             full_stack.append(*self.ambient)
 
-        self.layers_materials = []
+        self.layers_material = []
         self.layers_thickness = []
         self.layers_refractive = []
-        self.layers_label = []
 
         for idx, layer in enumerate(full_stack):
             material = layer[0]
@@ -69,29 +69,17 @@ class TMM_stack:
             else:
                 thickness = numpy.inf
 
-            label = material + f"_{idx:04d}"
-
-            self.layers_materials.append(material)
+            self.layers_material.append(material)
             self.layers_thickness.append(thickness)
             self.layers_refractive.append(index)
-            self.layers_label.append(label)
 
         self.total_thickness = numpy.sum([l[1] for l in self.stack])
-        self.materials = list(set(self.layers_materials))
+        self.materials = list(set(self.layers_material))
 
         self._prepared_layers = True
+        self._prepared_d_resolved = False
 
-    def calculate_tmm(self):
-        if not self._prepared_layers:
-            self.prepare_layers()
-
-        coh_tmm_data = coh_tmm(
-            self.polarisation,
-            self.layers_refractive,
-            self.layers_thickness,
-            self.θ0, self.λ0
-        )
-
+    def prepare_d_resolved(self):
         self.d_step = 0.01
         self.d_res = pandas.DataFrame()
         self.d_res["x"] = numpy.arange(
@@ -100,6 +88,34 @@ class TMM_stack:
             self.d_step
         )
 
+        bins = [
+            -self.plot_margin_l - 1, 0,
+            *numpy.cumsum(self.layers_thickness[1:])
+        ]
+        labels = [l + f"_{i:d}" for i, l in enumerate(self.layers_material)]
+        self.d_res["material"] = pandas.cut(
+            self.d_res["x"], bins=bins,
+            labels=labels
+        )
+        self._prepared_d_resolved = True
+
+    def calculate_tmm(self):
+        if not self._prepared_layers:
+            self.prepare_layers()
+
+        if not self._prepared_d_resolved:
+            self.prepare_d_resolved()
+
+        coh_tmm_data = coh_tmm(
+            self.polarisation,
+            self.layers_refractive,
+            self.layers_thickness,
+            self.θ0, self.λ0
+        )
+
+        self.transmission = coh_tmm_data["T"]
+        self.reflection = coh_tmm_data["R"]
+
         self.d_res["absorption"] = self.d_res["x"].apply(
             lambda x: position_resolved(
                 *find_in_structure_with_inf(self.layers_thickness, x),
@@ -107,21 +123,8 @@ class TMM_stack:
             )['absor']
         )
 
-        bins = [
-            -self.plot_margin_l - 1, 0,
-            *numpy.cumsum(self.layers_thickness[1:])
-        ]
-        self.d_res["material"] = pandas.cut(
-            self.d_res["x"], bins=bins,
-            labels=self.layers_label
-        )
-        print(self.d_res)
-
         self.d_res["absorption_cumulative"] = integrate.cumtrapz(
             self.d_res["absorption"], self.d_res["x"], initial=0)
-
-        self.transmission = coh_tmm_data["T"]
-        self.reflection = coh_tmm_data["R"]
 
     def plot(self, *, ax=None, show_layers=True, label=None,
              plot_cumulative=True):
@@ -157,6 +160,12 @@ class TMM_stack:
                 color='r', label=label
             )
 
+            if "absorption_specific" in self.d_res:
+                self.ax2.plot(
+                    self.d_res.x, self.d_res.absorption_specific * 100,
+                    color='r', label=label + " Specific"
+                )
+
     def mat2col(self, material):
         if material not in self._colormap:
             self._colormap[material] = self._sourcemap.pop(0)
@@ -164,5 +173,11 @@ class TMM_stack:
         return self._colormap[material]
 
     def calculate_material_absorption(self, material):
+        mask = self.d_res.material.str.contains(material)
+        self.d_res["absorption_specific"] = integrate.cumtrapz(
+            self.d_res.absorption * mask, self.d_res.x, initial=0)
 
-        pass
+        absorption_specific = integrate.trapz(
+            self.d_res.absorption * mask, self.d_res.x)
+
+        return absorption_specific
