@@ -102,7 +102,10 @@ class hallMeasurement:
                     self.substitute_columns_f1(
                         replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
                 self.normalize_f1_results()
-                self.individual_analysis_f2()
+                try:
+                    self.individual_analysis_f2()
+                except TypeError:
+                    print("Too few measurements for 2nd level analysis")
         elif self.orientation == "AHE":
             self.AHE_analysis()
         else:
@@ -707,6 +710,7 @@ def data_analysis_individual_full(group_item, group_keys=None):
 
 def data_analysis_individual(group_item, group_keys=None):
     group_values, data = group_item
+    data = data.copy()
     if not isinstance(group_values, (list, tuple, )):
         group_values = [group_values]
 
@@ -1112,101 +1116,6 @@ def plot_fit_results(results, group_key="temperature_sp",
         if y_label is not None:
             ax.set_ylabel(y_label)
         ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-
-    if x_label is not None:
-        axs[-1].set_xlabel(x_label)
-    elif x_key is not None:
-        axs[-1].set_xlabel(x_key)
-
-    if group_key is not None:
-        key_range = results[group_key].agg(["min", "max"])
-
-        for key, result in results.groupby(group_key):
-            for idx, (plkey, pllabel) in enumerate(plot_keys.items()):
-                cnorm = normalize(key, key_range)
-                c = (cnorm, 0, 1 - cnorm)
-
-                if x_key in result:
-                    x = result[x_key]
-                else:
-                    x = result.eval(x_key)
-
-                if plkey in result:
-                    y = result[plkey]
-                else:
-                    y = result.eval(plkey)
-
-                if plkey + "_std" in result:
-                    y_error = result[plkey + "_std"]
-                elif isinstance(y.iloc[0], Variable):
-                    y = y.agg(nominal_value)
-                    y_error = y.agg(std_dev)
-                else:
-                    y_error = None
-
-                if plkey + "_fit" in result:
-                    y_plot = result[plkey + '_fit']
-                    ls_y = ''
-                else:
-                    y_plot = None
-                    ls_y = '-'
-
-                axs[idx].errorbar(
-                    x, y, y_error,
-                    marker='.', ls=ls_y, c=c,
-                    label=f"{pllabel}"
-                )
-
-                if y_plot is not None:
-                    axs[idx].plot(x, y_plot, color=c)
-    else:
-        result = results
-        for idx, (plkey, pllabel) in enumerate(plot_keys.items()):
-
-            if x_key in result:
-                x = result[x_key]
-            else:
-                x = result.eval(x_key)
-
-            if plkey in result:
-                y = result[plkey]
-            else:
-                y = result.eval(plkey)
-
-    results_f2 = pd.DataFrame(
-        results_lst,
-        columns=[group_key, "tau_a_fit", "tau_b_fit", "tau_s_fit"],
-    )
-    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_a_"],
-                                  axis=1, result_type="expand")
-    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_b_"],
-                                  axis=1, result_type="expand")
-    results_f2 = results_f2.apply(add_fit_params_to_df, args=["tau_s_"],
-                                  axis=1, result_type="expand")
-    results_f2.sort_values(group_key, inplace=True)
-    results_f2.reset_index(drop=True, inplace=True)
-
-    return results_f1, results_f2
-
-
-def plot_fit_results(results, group_key="temperature_sp",
-                     plot_keys={}, x_key="magnetic_field",
-                     x_label=None, y_label=None,
-                     single_axis=False):
-    results.sort_values(x_key, inplace=True)
-
-    if isinstance(plot_keys, list):
-        plot_keys = {key: key for key in plot_keys}
-
-    if not single_axis and not len(plot_keys) == 1:
-        fig, axs = plt.subplots(len(plot_keys), 1, sharex=True)
-        for idx, label in enumerate(plot_keys.values()):
-            axs[idx].set_ylabel(label)
-    else:
-        fig, ax = plt.subplots(1, 1)
-        axs = [ax] * len(plot_keys)
-        if y_label is not None:
-            ax.set_ylabel(y_label)
 
     if x_label is not None:
         axs[-1].set_xlabel(x_label)
