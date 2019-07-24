@@ -13,6 +13,7 @@ from uncertainties import ufloat, nominal_value, std_dev
 from uncertainties.core import Variable
 from dataclasses import dataclass, InitVar
 import typing
+import copy
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -90,7 +91,8 @@ class hallMeasurement:
         )
         self.preprocessed = True
 
-    def full_analysis(self, unified=False, preprocess=True, replacement_AHE=None):
+    def full_analysis(self, unified=False, preprocess=True,
+                      replacement_AHE=None):
         if preprocess and not self.preprocessed:
             self.preprocess_data()
         if self.orientation == "PHE":
@@ -711,6 +713,7 @@ def data_analysis_individual_full(group_item, group_keys=None):
 def data_analysis_individual(group_item, group_keys=None):
     group_values, data = group_item
     data = data.copy()
+
     if not isinstance(group_values, (list, tuple, )):
         group_values = [group_values]
 
@@ -766,6 +769,16 @@ def data_analysis_individual(group_item, group_keys=None):
 
     data["harmonic_1_fit"] = fit_result_h1.best_fit
     data["harmonic_2_fit"] = fit_result_h2.best_fit
+
+    # Add individual components
+    data["harmonic_2_fit_PHE_FL"] = copy.deepcopy(fit_result_h2).eval(
+        R_PHE_DL=0, R_AHE_DL=0,)
+
+    data["harmonic_2_fit_PHE_DL"] = copy.deepcopy(fit_result_h2).eval(
+        R_PHE_FL=0, R_AHE_DL=0,)
+
+    data["harmonic_2_fit_AHE_DL"] = copy.deepcopy(fit_result_h2).eval(
+        R_PHE_FL=0, R_PHE_DL=0,)
 
     group.update({
         "data": data,
