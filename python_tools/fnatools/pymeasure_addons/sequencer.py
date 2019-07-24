@@ -60,7 +60,6 @@ class Sequencer(QtGui.QWidget):
 
         self._get_properties()
         self._layout()
-        self._add_tree_item()
         self._add_to_interface()
 
     def _get_properties(self):
