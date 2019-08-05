@@ -34,6 +34,7 @@ class hallMeasurement:
     preprocessed = False
     standardized = False
     Data: pd.DataFrame = None
+    MData: dict = None
     results_f1: pd.DataFrame = None
     results_f2: pd.DataFrame = None
 
@@ -61,22 +62,19 @@ class hallMeasurement:
         self.complement_data()
 
     def complement_data(self):
-        self.Data, self.MData = sort_out_harmonics(self.Data, self.MData)
-        self.Data, self.MData = sort_out_ac_source(self.Data, self.MData)
-        self.Data, self.MData = include_current(
-            self.Data, self.MData,
+        self.sort_out_harmonics()
+        self.sort_out_ac_source()
+        self.include_current(
             R=self.series_resistance + self.device_resistance
         )
 
     def preprocess_data(self):
-        self.Data, self.MData = remove_average_per_group(
-            self.Data, self.MData,
+        self.remove_average_per_group(
             ["temperature_sp", "magnetic_field"],
             ["harmonic_1_x", "harmonic_1_y", "harmonic_1_r",
              "harmonic_2_x", "harmonic_2_y", "harmonic_2_r", ]
         )
-        self.Data, self.MData = average_per_group(
-            self.Data, self.MData,
+        self.average_per_group(
             ["temperature_sp", "magnetic_field", "angle"]
         )
         self.Data, self.MData = correct_angle_per_group(
@@ -85,8 +83,7 @@ class hallMeasurement:
             angle_offset=self.angle_offset,
             auto_correct=self.angle_auto_correct,
         )
-        self.Data, self.MData = average_per_group(
-            self.Data, self.MData,
+        self.average_per_group(
             ["temperature_sp", "magnetic_field", "angle"]
         )
         self.preprocessed = True
@@ -103,7 +100,7 @@ class hallMeasurement:
                 if replacement_AHE is not None:
                     self.substitute_columns_f1(
                         replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
-                self.normalize_f1_results()
+                # self.normalize_f1_results()
                 try:
                     self.individual_analysis_f2()
                 except TypeError:
@@ -232,6 +229,155 @@ class hallMeasurement:
         return out
 
     # Functions
+    def sort_out_harmonics(self, dataset=None, metadata=None):
+        if dataset is not None:
+            self.Data = dataset
+        if metadata is not None:
+            self.MData = metadata
+
+        # Convert lock-in columns to harmonic-columns
+        try:
+            li1_harmonics = self.Data["lock_in_1_harmonic"].unique()
+            li2_harmonics = self.Data["lock_in_2_harmonic"].unique()
+        except KeyError:
+            print("No harmonics columns in data")
+            return self.Data, self.MData
+
+        li1_harmonic = int(li1_harmonics[0])
+        li2_harmonic = int(li2_harmonics[0])
+
+        if len(li1_harmonics) != 1 or len(li2_harmonics) != 1:
+            raise ValueError("Harmonics are not uniform for entire dataset")
+        elif li1_harmonic == li2_harmonic:
+            raise ValueError("Both lock-ins measured the same harmonic")
+
+        replacements = {
+            "lock_in_1_x": f"harmonic_{li1_harmonic:d}_x",
+            "lock_in_1_y": f"harmonic_{li1_harmonic:d}_y",
+            "lock_in_2_x": f"harmonic_{li2_harmonic:d}_x",
+            "lock_in_2_y": f"harmonic_{li2_harmonic:d}_y",
+        }
+
+        self.Data.rename(columns=replacements, inplace=True)
+        self.Data.drop([
+            "lock_in_1_harmonic",
+            "lock_in_2_harmonic",
+        ], axis=1, inplace=True)
+
+        self.Data["harmonic_1_r"] = np.sqrt(self.Data["harmonic_1_x"]**2 +
+                                            self.Data["harmonic_1_y"]**2)
+        self.Data["harmonic_2_r"] = np.sqrt(self.Data["harmonic_2_x"]**2 +
+                                            self.Data["harmonic_2_y"]**2)
+
+        if isinstance(self.MData, dict):
+            self.MData.update({
+                "lock-in 1 harmonic": li1_harmonic,
+                "lock-in 2 harmonic": li2_harmonic,
+            })
+
+            if "Units" in self.MData:
+                for old_key, new_key in replacements.items():
+                    self.MData["Units"][new_key] = self.MData["Units"].pop(
+                        old_key)
+
+            if "manipulations" in self.MData:
+                self.MData["manipulations"].append("Labels_converted")
+
+        return self.Data, self.MData
+
+    def sort_out_ac_source(self, dataset=None, metadata=None):
+        if dataset is not None:
+            self.Data = dataset
+        if metadata is not None:
+            self.MData = metadata
+
+        li_voltages = {col[:-2]: self.Data[col].unique() for col
+                       in self.Data.columns if (
+            col.startswith("lock_in_") and col.endswith("_v")
+        )}
+
+        if len(li_voltages) == 0:
+            print("No voltage columns in data")
+            return self.Data, self.MData
+        elif any([len(voltage) != 1 for voltage in li_voltages.values()]):
+            raise ValueError("Voltages are not uniform for entire dataset")
+        elif all([voltage == 0. for voltage in li_voltages.values()]):
+            raise ValueError("All of the lock-ins set non-zero voltage")
+
+        source = max(li_voltages, key=li_voltages.get)
+
+        if isinstance(self.MData, dict):
+            self.MData.update({
+                "AC Voltage source": source,
+                "AC Voltage": li_voltages.pop(source),
+            })
+
+        replacements = {
+            source + "_v": "voltage",
+            source + "_f": "frequency",
+        }
+
+        self.Data.rename(columns=replacements, inplace=True)
+
+        drop_keys = []
+        for no_source in li_voltages:
+            drop_keys.extend([
+                no_source + "_v",
+                no_source + "_f",
+            ])
+
+        self.Data.drop(columns=drop_keys, inplace=True)
+
+        if isinstance(self.MData, dict):
+
+            if "Units" in self.MData:
+                for old_key, new_key in replacements.items():
+                    self.MData["Units"][new_key] = self.MData["Units"].pop(
+                        old_key)
+
+                for drop_key in drop_keys:
+                    self.MData["Units"].pop(drop_key, None)
+
+            if "manipulations" in self.MData:
+                self.MData["manipulations"].append("AC_Source_interpretation")
+
+        return self.Data, self.MData
+
+    def include_current(self, dataset=None, metadata=None,
+                        I0=None, R=None, U=None):
+        """
+        :params:
+        I0 : optional float representing the current in A
+        R : optional float representing the resistance in Ohm
+        U : optional float representing the voltage in V
+
+        """
+        if dataset is not None:
+            self.Data = dataset
+        if metadata is not None:
+            self.MData = metadata
+
+        if I0 is not None:
+            self.Data["current"] = I0
+            if isinstance(self.MData, dict):
+                self.MData["current"] = list(set(I0))
+                if "Units" in self.MData:
+                    self.MData["Units"]["current"] = "A"
+        else:
+            if U is None:
+                U = self.Data["voltage"]
+
+            if R is None:
+                R = self.Data["resistance"]
+
+            self.Data["current"] = U / R
+
+        if isinstance(self.MData, dict):
+            if "manipulations" in self.MData:
+                self.MData["manipulations"].append("AC_Current_calculated")
+
+        return self.Data, self.MData
+
     def mask_data(self, Data=None, mask_angles=[90, 270], mask_width=20):
         if Data is not None:
             self.Data = Data
@@ -311,6 +457,53 @@ class hallMeasurement:
 
         return self.results_f1
 
+    def remove_average_per_group(self, group_keys, columns,
+                                 dataset=None, metadata=None):
+        if dataset is not None:
+            self.Data = dataset
+        if metadata is not None:
+            self.MData = metadata
+
+        def subtract_mean(df):
+            df[columns] -= df[columns].mean()
+            return df
+
+        datagroup = self.Data.groupby(group_keys, as_index=False)
+        dataset = datagroup.apply(subtract_mean)
+
+        if isinstance(self.MData, dict):
+            if "manipulations" in self.MData:
+                self.MData["manipulations"].append("Background_removed")
+
+        return self.Data, self.MData
+
+    def average_per_group(self, group_keys, std_keys=None,
+                          dataset=None, metadata=None):
+        if dataset is not None:
+            self.Data = dataset
+        if metadata is not None:
+            self.MData = metadata
+
+        datagroup = self.Data.groupby(group_keys, as_index=False)
+        self.Data = datagroup.mean()
+
+        if std_keys is not None:
+            if isinstance(std_keys, str):
+                std_keys = [std_keys]
+
+            std = datagroup.std()
+
+            for key in std_keys:
+                self.Data[key + "_std"] = std[key]
+
+        self.Data.reset_index(drop=True, inplace=True)
+
+        if isinstance(self.MData, dict):
+            if "manipulations" in self.MData:
+                self.MData["manipulations"].append("Binned_and_averaged")
+
+        return self.Data, self.MData
+
 
 def import_multiple_data(folder, filenames, map_fn=map, min_length=None):
     files = Path(folder).glob(filenames)
@@ -389,141 +582,6 @@ def import_multiple_data(folder, filenames, map_fn=map, min_length=None):
     MetaData["manipulations"].append("Imported")
 
     return Data, MetaData
-
-
-def sort_out_harmonics(dataset, metadata,):
-    # Convert lock-in columns to harmonic-columns
-    li1_harmonics = dataset["lock_in_1_harmonic"].unique()
-    li2_harmonics = dataset["lock_in_2_harmonic"].unique()
-
-    li1_harmonic = int(li1_harmonics[0])
-    li2_harmonic = int(li2_harmonics[0])
-
-    if len(li1_harmonics) != 1 or len(li2_harmonics) != 1:
-        raise ValueError("Harmonics are not uniform for entire dataset")
-    elif li1_harmonic == li2_harmonic:
-        raise ValueError("Both lock-ins measured the same harmonic")
-
-    replacements = {
-        "lock_in_1_x": f"harmonic_{li1_harmonic:d}_x",
-        "lock_in_1_y": f"harmonic_{li1_harmonic:d}_y",
-        "lock_in_2_x": f"harmonic_{li2_harmonic:d}_x",
-        "lock_in_2_y": f"harmonic_{li2_harmonic:d}_y",
-    }
-
-    dataset.rename(columns=replacements, inplace=True)
-    dataset.drop([
-        "lock_in_1_harmonic",
-        "lock_in_2_harmonic",
-    ], axis=1, inplace=True)
-
-    metadata.update({
-        "lock-in 1 harmonic": li1_harmonic,
-        "lock-in 2 harmonic": li2_harmonic,
-    })
-
-    for old_key, new_key in replacements.items():
-        metadata["Units"][new_key] = metadata["Units"].pop(old_key)
-
-    dataset["harmonic_1_r"] = np.sqrt(dataset["harmonic_1_x"]**2 +
-                                      dataset["harmonic_1_y"]**2)
-    dataset["harmonic_2_r"] = np.sqrt(dataset["harmonic_2_x"]**2 +
-                                      dataset["harmonic_2_y"]**2)
-
-    metadata["manipulations"].append("Labels_converted")
-
-    return dataset, metadata
-
-
-def sort_out_ac_source(dataset, metadata,):
-    li1_voltages = dataset["lock_in_1_v"].unique()
-    li2_voltages = dataset["lock_in_2_v"].unique()
-
-    li_voltages = {1: li1_voltages[0], 2: li2_voltages[0]}
-
-    if len(li1_voltages) != 1 or len(li2_voltages) != 1:
-        raise ValueError("Voltages are not uniform for entire dataset")
-    elif not ((li_voltages[1] == 0.) ^ (li_voltages[2] == 0.)):
-        raise ValueError("Both of the lock-ins set non-zero voltage")
-
-    source = max(li_voltages, key=li_voltages.get)
-
-    metadata.update({
-        "AC Voltage source": source,
-        "AC Voltage": li_voltages.pop(source),
-    })
-
-    replacements = {
-        f"lock_in_{source:d}_v": "voltage",
-        f"lock_in_{source:d}_f": "frequency",
-    }
-
-    dataset.rename(columns=replacements, inplace=True)
-
-    for old_key, new_key in replacements.items():
-        metadata["Units"][new_key] = metadata["Units"].pop(old_key)
-
-    for no_source in li_voltages:
-        drop = [
-            f"lock_in_{no_source:d}_v",
-            f"lock_in_{no_source:d}_f",
-        ]
-        dataset.drop(columns=drop, inplace=True)
-        for drop_key in drop:
-            metadata["Units"].pop(drop_key, None)
-
-    metadata["manipulations"].append("AC_Source_interpretation")
-
-    return dataset, metadata
-
-
-def include_current(dataset, metadata, I0=None, R=None, U=None):
-    """
-    :params:
-    I0 : optional float representing the current in A
-    R : optional float representing the resistance in Ohm
-    U : optional float representing the voltage in V
-
-    """
-
-    if I0 is not None:
-        dataset["current"] = I0
-        metadata["current"] = list(set(I0))
-        metadata["Units"]["current"] = "A"
-    else:
-        if U is None:
-            U = dataset["voltage"]
-
-        if R is None:
-            R = dataset["resistance"]
-
-        dataset["current"] = U / R
-
-    metadata["manipulations"].append("AC_Current_calculated")
-
-    return dataset, metadata
-
-
-def remove_average_per_group(dataset, metadata, group_keys, columns):
-
-    def subtract_mean(df):
-        df[columns] -= df[columns].mean()
-        return df
-
-    dataset = dataset.groupby(group_keys, as_index=False).apply(subtract_mean)
-
-    metadata["manipulations"].append("Background_removed")
-
-    return dataset, metadata
-
-
-def average_per_group(dataset, metadata, group_keys):
-    dataset = dataset.groupby(group_keys, as_index=False).mean()
-    dataset.reset_index(drop=True, inplace=True)
-
-    metadata["manipulations"].append("Binned_and_averaged")
-
-    return dataset, metadata
 
 
 def correct_angle_per_group(dataset, metadata, group_keys,
@@ -954,7 +1012,7 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
 
     fig, axes = plt.subplots(2, 1, sharex=True)
 
-    offset = np.array([0, 0])
+    offset = np.array([0, 0], dtype="float64")
 
     for key, subdata in data.groupby(subgroup_key):
         key_norm = normalize(key, key_range)
