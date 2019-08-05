@@ -100,7 +100,7 @@ class hallMeasurement:
                 if replacement_AHE is not None:
                     self.substitute_columns_f1(
                         replacement_AHE, ["h1_R_AHE", "h1_R_AHE_std"])
-                # self.normalize_f1_results()
+                self.normalize_f1_results()
                 try:
                     self.individual_analysis_f2()
                 except TypeError:
