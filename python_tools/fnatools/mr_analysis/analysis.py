@@ -469,7 +469,7 @@ class hallMeasurement:
             return df
 
         datagroup = self.Data.groupby(group_keys, as_index=False)
-        dataset = datagroup.apply(subtract_mean)
+        self.Data = datagroup.apply(subtract_mean)
 
         if isinstance(self.MData, dict):
             if "manipulations" in self.MData:
