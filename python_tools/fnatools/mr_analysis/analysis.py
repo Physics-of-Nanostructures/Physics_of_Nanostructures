@@ -26,10 +26,12 @@ class hallMeasurement:
     min_length: int = 401
     angle_offset: float = 0.
     series_resistance: float = 1e3
-    device_resistance: float = 0
+    device_resistance: float = 0.
     angle_auto_correct: bool = True
     analyse_and_plot: InitVar[bool] = False
     orientation: str = "PHE"
+    mask_angle: float = None
+    mask_width: float = None
 
     preprocessed = False
     standardized = False
@@ -86,6 +88,11 @@ class hallMeasurement:
         self.average_per_group(
             ["temperature_sp", "magnetic_field", "angle"]
         )
+
+        if self.mask_angle is not None and self.mask_width is not None:
+            self.mask_data(mask_angles=self.mask_angle,
+                           mask_width=self.mask_width)
+
         self.preprocessed = True
 
     def full_analysis(self, unified=False, preprocess=True,
@@ -381,6 +388,10 @@ class hallMeasurement:
     def mask_data(self, Data=None, mask_angles=[90, 270], mask_width=20):
         if Data is not None:
             self.Data = Data
+
+        if isinstance(mask_angles, (float, int)):
+            mask_angle = mask_angles
+            mask_angles = [mask_angle, mask_angle + 180]
 
         # for angle in mask_angles:
         #     diff = self.Data["angle"] - angle
@@ -850,6 +861,7 @@ def data_analysis_individual(group_item, group_keys=None):
 def data_analysis_AHE(group_item, group_keys=None):
     # raise NotImplementedError("Fix Masking and parameters")
     group_values, data = group_item
+    data = data.copy()
     if not isinstance(group_values, (list, tuple, )):
         group_values = [group_values]
 
