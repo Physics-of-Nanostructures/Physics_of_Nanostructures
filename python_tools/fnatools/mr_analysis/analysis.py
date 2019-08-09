@@ -9,6 +9,7 @@ from functools import partial
 import re
 from dataclasses import dataclass, InitVar
 import copy
+from tqdm import tqdm
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -942,7 +943,8 @@ def dataset_analysis(dataset, metadata, group_keys,
     results_lst = []
     dataset_lst = []
 
-    for group in map_fn(partial_analysis_fn, data_groups):
+    for group in tqdm(map_fn(partial_analysis_fn, data_groups),
+                      total=len(data_groups)):
         dataset_lst.append(group["data"])
         results_lst.append({k: v for k, v in group.items() if not k == "data"})
 
