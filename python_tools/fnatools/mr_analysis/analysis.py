@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass, InitVar
 import copy
 from tqdm import tqdm
+from typing import Callable
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -24,22 +25,28 @@ class hallMeasurement:
     series_resistance: float = 1e3
     device_resistance: float = 0.
     angle_auto_correct: bool = True
-    analyse_and_plot: InitVar[bool] = False
     orientation: str = "PHE"
-    mask_angle: float = None
-    mask_width: float = None
+    mask_angle: {float, None} = None
+    mask_width: {float, None} = None
+
+    analyse_and_plot: InitVar[bool] = False
 
     preprocessed = False
     standardized = False
-    Data: pd.DataFrame = None
-    MData: dict = None
-    results_f1: pd.DataFrame = None
-    results_f2: pd.DataFrame = None
+    Data: {pd.DataFrame, None} = None
+    MData: {dict, None} = None
+    results_f1: {pd.DataFrame, None} = None
+    results_f2: {pd.DataFrame, None} = None
 
     def __post_init__(self, analyse_and_plot):
         # Validate input
         if self.orientation not in ["PHE", "AHE"]:
             raise ValueError("Orientation should be either AHE of PHE.")
+
+        if use_tqdm_gui:
+            self.tqdm_fn = tqdm.tqdm_gui
+        else:
+            self.tqdm_fn = tqdm.tqdm
 
         self.DataOriginal, self.MetaDataOriginal = import_multiple_data(
             self.path, self.file_name_format,
