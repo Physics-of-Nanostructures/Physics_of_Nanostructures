@@ -1,18 +1,13 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from matplotlib import collections
 from pathlib import Path
 from lmfit import Model
 from functools import partial
 import re
-from scipy import integrate
-from uncertainties import ufloat, nominal_value, std_dev
-from uncertainties.core import Variable
 from dataclasses import dataclass, InitVar
-import typing
 import copy
 from .import_measurements import pyMeasurement
 from .data_fitting import *
