@@ -9,7 +9,7 @@ from functools import partial
 import re
 from dataclasses import dataclass, InitVar
 import copy
-from tqdm import tqdm
+import tqdm
 from typing import Callable
 from .import_measurements import pyMeasurement
 from .data_fitting import *
@@ -19,7 +19,7 @@ from .data_fitting import *
 class hallMeasurement:
     path: str = "./"
     file_name_format: str = "*.txt"
-    map_fn: map = map
+    map_fn: Callable = map
     min_length: int = 401
     angle_offset: float = 0.
     series_resistance: float = 1e3
@@ -30,6 +30,7 @@ class hallMeasurement:
     mask_width: {float, None} = None
 
     analyse_and_plot: InitVar[bool] = False
+    use_tqdm_gui: InitVar[bool] = False
 
     preprocessed = False
     standardized = False
@@ -38,7 +39,7 @@ class hallMeasurement:
     results_f1: {pd.DataFrame, None} = None
     results_f2: {pd.DataFrame, None} = None
 
-    def __post_init__(self, analyse_and_plot):
+    def __post_init__(self, analyse_and_plot, use_tqdm_gui):
         # Validate input
         if self.orientation not in ["PHE", "AHE"]:
             raise ValueError("Orientation should be either AHE of PHE.")
@@ -125,7 +126,7 @@ class hallMeasurement:
             self.Data, self.MData,
             group_keys=["temperature_sp"],
             analysis_fn=data_analysis_unified,
-            map_fn=self.map_fn,
+            map_fn=self.map_fn, tqdm_fn=self.tqdm_fn,
         )
 
     def individual_analysis_f1(self):
@@ -133,7 +134,7 @@ class hallMeasurement:
             self.Data, self.MData,
             group_keys=["temperature_sp", "magnetic_field"],
             analysis_fn=data_analysis_individual,
-            map_fn=self.map_fn,
+            map_fn=self.map_fn, tqdm_fn=self.tqdm_fn,
         )
 
     def individual_analysis_f2(self):
@@ -147,7 +148,7 @@ class hallMeasurement:
             self.Data, self.MData,
             group_keys=["temperature_sp", "magnetic_field"],
             analysis_fn=data_analysis_AHE,
-            map_fn=self.map_fn,
+            map_fn=self.map_fn, tqdm_fn=self.tqdm_fn,
         )
 
     def plot_data(self, T=None, label=""):
@@ -938,7 +939,8 @@ def data_analysis_AHE(group_item, group_keys=None):
 
 
 def dataset_analysis(dataset, metadata, group_keys,
-                     analysis_fn=data_analysis_unified, map_fn=map):
+                     analysis_fn=data_analysis_unified,
+                     map_fn=map, tqdm_fn=tqdm):
 
     data_groups = dataset.groupby(group_keys)
 
@@ -950,8 +952,8 @@ def dataset_analysis(dataset, metadata, group_keys,
     results_lst = []
     dataset_lst = []
 
-    for group in tqdm(map_fn(partial_analysis_fn, data_groups),
-                      total=len(data_groups)):
+    for group in tqdm_fn(map_fn(partial_analysis_fn, data_groups),
+                         total=len(data_groups)):
         dataset_lst.append(group["data"])
         results_lst.append({k: v for k, v in group.items() if not k == "data"})
 
