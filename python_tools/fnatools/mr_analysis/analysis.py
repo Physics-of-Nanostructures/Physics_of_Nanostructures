@@ -28,6 +28,7 @@ class hallMeasurement:
     orientation: str = "PHE"
     mask_angle: {float, None} = None
     mask_width: {float, None} = None
+    include_τB: bool = True
 
     analyse_and_plot: InitVar[bool] = False
     use_tqdm_gui: InitVar[bool] = False
@@ -135,6 +136,7 @@ class hallMeasurement:
             group_keys=["temperature_sp", "magnetic_field"],
             analysis_fn=data_analysis_individual,
             map_fn=self.map_fn, tqdm_fn=self.tqdm_fn,
+            include_PHE_DL=self.include_τB
         )
 
     def individual_analysis_f2(self):
@@ -783,7 +785,7 @@ def data_analysis_individual_full(group_item, group_keys=None):
     return group
 
 
-def data_analysis_individual(group_item, group_keys=None):
+def data_analysis_individual(group_item, group_keys=None, include_PHE_DL=True):
     group_values, data = group_item
     data = data.copy()
 
@@ -831,6 +833,9 @@ def data_analysis_individual(group_item, group_keys=None):
 
     params_h2 = model_h2.make_params()
 
+    if not include_PHE_DL:
+        params_h2["R_PHE_DL"].set(vary=False, value=0)
+
     # params_h2["phi_0"].set(vary=True, value=fit_result_h1.params['phi_0'])
 
     fit_result_h2 = model_h2.fit(
@@ -847,8 +852,9 @@ def data_analysis_individual(group_item, group_keys=None):
     data["harmonic_2_fit_PHE_FL"] = copy.deepcopy(fit_result_h2).eval(
         R_PHE_DL=0, R_AHE_DL=0,)
 
-    data["harmonic_2_fit_PHE_DL"] = copy.deepcopy(fit_result_h2).eval(
-        R_PHE_FL=0, R_AHE_DL=0,)
+    if include_PHE_DL:
+        data["harmonic_2_fit_PHE_DL"] = copy.deepcopy(fit_result_h2).eval(
+            R_PHE_FL=0, R_AHE_DL=0,)
 
     data["harmonic_2_fit_AHE_DL"] = copy.deepcopy(fit_result_h2).eval(
         R_PHE_FL=0, R_PHE_DL=0,)
@@ -940,13 +946,14 @@ def data_analysis_AHE(group_item, group_keys=None):
 
 def dataset_analysis(dataset, metadata, group_keys,
                      analysis_fn=data_analysis_unified,
-                     map_fn=map, tqdm_fn=tqdm):
+                     map_fn=map, tqdm_fn=tqdm, **fit_kwargs):
 
     data_groups = dataset.groupby(group_keys)
 
     partial_analysis_fn = partial(
         analysis_fn,
         group_keys=group_keys,
+        **fit_kwargs,
     )
 
     results_lst = []
