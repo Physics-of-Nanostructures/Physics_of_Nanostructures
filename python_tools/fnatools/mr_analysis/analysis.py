@@ -11,6 +11,7 @@ from dataclasses import dataclass, InitVar
 import copy
 import tqdm
 from typing import Callable
+import warnings
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -33,6 +34,7 @@ class hallMeasurement:
     analyse_and_plot: InitVar[bool] = False
     use_tqdm_gui: InitVar[bool] = False
 
+    complemented = False
     preprocessed = False
     standardized = False
     Data: {pd.DataFrame, None} = None
@@ -65,8 +67,8 @@ class hallMeasurement:
     def reset_to_original(self):
         self.Data = self.DataOriginal.copy(deep=True)
         self.MData = self.MetaDataOriginal.copy()
+        self.complemented = False
         self.preprocessed = False
-        self.complement_data()
 
     def complement_data(self):
         self.sort_out_harmonics()
@@ -74,8 +76,12 @@ class hallMeasurement:
         self.include_current(
             R=self.series_resistance + self.device_resistance
         )
+        self.complemented = True
 
     def preprocess_data(self):
+        if not self.complemented:
+            self.complement_data()
+
         self.remove_average_per_group(
             ["temperature_sp", "magnetic_field"],
             ["harmonic_1_x", "harmonic_1_y", "harmonic_1_r",
@@ -154,7 +160,11 @@ class hallMeasurement:
         )
 
     def plot_data(self, T=None, label=""):
+        if not self.complemented:
+            self.complement_data()
+
         self.Data = sort_dataset(self.Data)
+
         plotData = self.Data.copy()
 
         if T is not None:
@@ -260,9 +270,11 @@ class hallMeasurement:
         li2_harmonic = int(li2_harmonics[0])
 
         if len(li1_harmonics) != 1 or len(li2_harmonics) != 1:
-            raise ValueError("Harmonics are not uniform for entire dataset")
+            warnings.warn("Harmonics are not uniform for entire dataset")
+            return self.Data, self.MData
         elif li1_harmonic == li2_harmonic:
-            raise ValueError("Both lock-ins measured the same harmonic")
+            warnings.warn("Both lock-ins measured the same harmonic, using 2")
+            li2_harmonic = 0
 
         replacements = {
             "lock_in_1_x": f"harmonic_{li1_harmonic:d}_x",
@@ -277,10 +289,17 @@ class hallMeasurement:
             "lock_in_2_harmonic",
         ], axis=1, inplace=True)
 
-        self.Data["harmonic_1_r"] = np.sqrt(self.Data["harmonic_1_x"]**2 +
-                                            self.Data["harmonic_1_y"]**2)
-        self.Data["harmonic_2_r"] = np.sqrt(self.Data["harmonic_2_x"]**2 +
-                                            self.Data["harmonic_2_y"]**2)
+        try:
+            self.Data["harmonic_1_r"] = np.sqrt(self.Data["harmonic_1_x"]**2 +
+                                                self.Data["harmonic_1_y"]**2)
+        except KeyError:
+            warnings.warn("No harmonic 1 (x and/or y)")
+
+        try:
+            self.Data["harmonic_2_r"] = np.sqrt(self.Data["harmonic_2_x"]**2 +
+                                                self.Data["harmonic_2_y"]**2)
+        except KeyError:
+            warnings.warn("No harmonic 2 (x and/or y)")
 
         if isinstance(self.MData, dict):
             self.MData.update({
@@ -313,9 +332,11 @@ class hallMeasurement:
             print("No voltage columns in data")
             return self.Data, self.MData
         elif any([len(voltage) != 1 for voltage in li_voltages.values()]):
-            raise ValueError("Voltages are not uniform for entire dataset")
+            warnings.warn("Voltages are not uniform for entire dataset")
+            return self.Data, self.MData
         elif all([voltage == 0. for voltage in li_voltages.values()]):
-            raise ValueError("All of the lock-ins set non-zero voltage")
+            warnings.warn("All of the lock-ins set non-zero voltage")
+            return self.Data, self.MData
 
         source = max(li_voltages, key=li_voltages.get)
 
@@ -377,13 +398,14 @@ class hallMeasurement:
                 if "Units" in self.MData:
                     self.MData["Units"]["current"] = "A"
         else:
-            if U is None:
+            if U is None and "voltage" in self.Data:
                 U = self.Data["voltage"]
 
-            if R is None:
+            if R is None and "resistance" in self.Data:
                 R = self.Data["resistance"]
 
-            self.Data["current"] = U / R
+            if R is not None and U is not None:
+                self.Data["current"] = U / R
 
         if isinstance(self.MData, dict):
             if "manipulations" in self.MData:
@@ -480,6 +502,8 @@ class hallMeasurement:
             self.Data = dataset
         if metadata is not None:
             self.MData = metadata
+
+        columns = [col for col in columns if col in self.Data]
 
         def subtract_mean(df):
             df[columns] -= df[columns].mean()
@@ -1035,7 +1059,8 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
     if key_range is None:
         key_range = (data[subgroup_key].min(), data[subgroup_key].max())
 
-    fig, axes = plt.subplots(2, 1, sharex=True)
+    fig, axes = plt.subplots(2, 1, sharex=True, squeeze=False)
+    axes = axes.T[0]
 
     offset = np.array([0, 0], dtype="float64")
 
@@ -1045,10 +1070,15 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
         color_fit = (key_norm, 1, 1 - key_norm)
         # color_fit = 'k'
 
-        axes[0].plot(subdata.angle, subdata["harmonic_1_x"] + offset[0],
-                     '.', color=color)
-        axes[1].plot(subdata.angle, subdata["harmonic_2_y"] + offset[1],
-                     '.', color=color)
+        if "harmonic_1_x" in data:
+            axes[0].plot(subdata.angle, subdata["harmonic_1_x"] + offset[0],
+                         '.', color=color)
+            offset[0] += 2 * np.std(data["harmonic_1_x"])
+
+        if "harmonic_2_y" in data:
+            axes[1].plot(subdata.angle, subdata["harmonic_2_y"] + offset[1],
+                         '.', color=color)
+            offset[1] += 2 * np.std(data["harmonic_2_y"])
 
         if "harmonic_1_fit" in subdata:
             axes[0].plot(subdata.angle, subdata["harmonic_1_fit"] + offset[0],
@@ -1070,7 +1100,6 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
             axes[1].plot(subdata.angle, h2 + offset[1],
                          color=color_fit)
 
-        offset += 2 * np.std(data[["harmonic_1_x", "harmonic_2_y"]])
 
     if "mask" in subdata:
         for ax in axes:
