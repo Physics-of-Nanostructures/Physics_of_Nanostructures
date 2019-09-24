@@ -3,17 +3,32 @@ from __future__ import annotations
 from .binaryFileReader import BinaryReader
 from dataclasses import dataclass, InitVar
 from datetime import datetime
-from scipy.interpolate import interp1d, interp2d
+from skimage.transform import rescale
+from skimage.feature import register_translation
+from scipy.ndimage import fourier_shift
 import numpy as np
+from pathlib import Path
+
+
+# @dataclass
+# class SEMPA_Measurements:
+#     """
+#     Class to import and process SEMPA measurements
+#     """
+
+#     filenames: InitVar[str]
+
+#     def __post_init__(self, filenames):
+#         Path(filenames).glob()
 
 
 @dataclass
 class SEMPA_Scan:
     """
-    Class to import and process SEMPA measurements
+    Class to import and process a single SEMPA scan
     """
 
-    filename: InitVar[(str, SEMPA_Scan, np.ndarray)] = None
+    datasource: InitVar[(str, SEMPA_Scan, np.ndarray)] = None
     x_data: InitVar[np.ndarray] = None
     y_data: InitVar[np.ndarray] = None
 
@@ -179,8 +194,6 @@ class SEMPA_Scan:
             np.arange(self.axes[3].clock_count) * \
             self.axes[3].physical_increment_val
 
-        # self.X, self.Y = np.meshgrid(self.x, self.y)
-
         self.channels = np.reshape(
             self.raw,
             (4, self.axes[1].clock_count, self.axes[3].clock_count),
@@ -188,38 +201,66 @@ class SEMPA_Scan:
         )
         self.channels = np.swapaxes(self.channels, 0, 2)
         self.channels = np.rot90(self.channels, 2)
-        self.channels = np.rollaxis(self.channels, 2)
 
         return self
 
     @property
     def sem(self):
-        return np.sum(self.channels, 0)
+        return np.sum(self.channels, -1)
+
+    @property
+    def ch1(self):
+        return self.channels[:, :, 0]
+
+    @property
+    def ch2(self):
+        return self.channels[:, :, 1]
+
+    @property
+    def ch3(self):
+        return self.channels[:, :, 2]
+
+    @property
+    def ch4(self):
+        return self.channels[:, :, 3]
 
     @property
     def asym_x(self):
-        return (self.channels[0] - self.channels[1]) / \
-            (self.channels[0] + self.channels[1])
+        return (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
+            (self.channels[:, :, 0] + self.channels[:, :, 1])
 
     @property
     def asym_y(self):
-        return (self.channels[2] - self.channels[3]) / \
-            (self.channels[2] + self.channels[3])
+        return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
+            (self.channels[:, :, 2] + self.channels[:, :, 3])
 
-    @property
-    def supersampled(self):
-        return self.supersample(k=2)
+    def drift_correct(self, source_data: SEMPA_Scan,
+                      crop_region=None, upsample_factor=100,
+                      channel='sem'):
+        if crop_region is not None:
+            raise NotImplementedError("cropping not yet implemented")
 
-    def supersample(self, k=2):
-        x_new = interp1d(np.arange(self.x), self.x)(
-            np.linspace(0, len(self.x), self.x * (2**k - 1))
-        )
-        y_new = interp1d(np.arange(self.y), self.y)(
-            np.linspace(0, len(self.y), self.y * (2**k - 1))
-        )
+        shifted_data = SEMPA_Scan(self)
+
+        source_image = getattr(source_data, channel)
+        shifted_image = getattr(self, channel)
+
+        shift, error, _ = register_translation(source_image, shifted_image,
+                                               upsample_factor=upsample_factor)
+
+        shifted_data.shift = shift
+        shifted_data.shift_error = error
+
+        shifted_channels = []
 
         for i in range(4):
-            interp2d(self.x, self.y, self.channels[i])(x_new, y_new)
+            image = np.fft.fftn(shifted_data.channels[:, :, i])
+            image = fourier_shift(image, shift)
+            shifted_channels.append(np.abs(np.fft.ifftn(image)))
+
+        shifted_channels = np.stack(shifted_channels, -1)
+        shifted_data.channels = shifted_channels
+        return shifted_data
 
     def __add__(self, other):
         if isinstance(other, SEMPA_Scan):
