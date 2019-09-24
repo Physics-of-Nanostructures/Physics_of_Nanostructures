@@ -3,6 +3,7 @@ from __future__ import annotations
 from .binaryFileReader import BinaryReader
 from dataclasses import dataclass, InitVar
 from datetime import datetime
+from scipy.interpolate import interp1d, interp2d
 import numpy as np
 
 
@@ -204,6 +205,21 @@ class SEMPA_Scan:
     def asym_y(self):
         return (self.channels[2] - self.channels[3]) / \
             (self.channels[2] + self.channels[3])
+
+    @property
+    def supersampled(self):
+        return self.supersample(k=2)
+
+    def supersample(self, k=2):
+        x_new = interp1d(np.arange(self.x), self.x)(
+            np.linspace(0, len(self.x), self.x * (2**k - 1))
+        )
+        y_new = interp1d(np.arange(self.y), self.y)(
+            np.linspace(0, len(self.y), self.y * (2**k - 1))
+        )
+
+        for i in range(4):
+            interp2d(self.x, self.y, self.channels[i])(x_new, y_new)
 
     def __add__(self, other):
         if isinstance(other, SEMPA_Scan):
