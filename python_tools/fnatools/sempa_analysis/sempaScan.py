@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .binaryFileReader import BinaryReader
+from .polyfit2d import polyfit2d
 from dataclasses import dataclass, InitVar
 from datetime import datetime
 from skimage.transform import rescale
@@ -234,7 +235,7 @@ class SEMPA_Scan:
         return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
             (self.channels[:, :, 2] + self.channels[:, :, 3])
 
-    def drift_correct(self, source_data: SEMPA_Scan,
+    def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
                       channel='sem'):
         if crop_region is not None:
@@ -261,6 +262,30 @@ class SEMPA_Scan:
         shifted_channels = np.stack(shifted_channels, -1)
         shifted_data.channels = shifted_channels
         return shifted_data
+
+    def remove_background(self, kx=3, ky=3, max_order=None):
+        background = []
+
+        for i in range(4):
+            channel = self.channels[:, :, i]
+            coefs, _, _, _ = polyfit2d(
+                self.x, self.y, channel, kx=kx, ky=ky, order=max_order
+            )
+            coefs = coefs.reshape((kx + 1, ky + 1))
+
+            background.append(
+                np.polynomial.polynomial.polygrid2d(
+                    self.x, self.y, coefs
+                ))
+
+        background = np.stack(background, -1)
+        background = np.swapaxes(background, 0, 1)
+
+        new_data = SEMPA_Scan(self)
+        new_data -= background
+        new_data.background = background
+
+        return new_data
 
     def __add__(self, other):
         if isinstance(other, SEMPA_Scan):
