@@ -8,10 +8,10 @@ class BinaryReader:
 
     def next_string(self):
         number_of_chars = self.next_int()
-        string = struct.unpack("cx" * number_of_chars,
+        string = struct.unpack("cc" * number_of_chars,
                                self.filebuffer.read(2 * number_of_chars))
         string = b"".join(string)
-        string = string.decode("utf-8")
+        string = string.decode("utf-16")
         return string
 
     def next_int(self):
