@@ -5,7 +5,7 @@ import numpy as np
 
 
 @dataclass
-class SEMPA_Measurement:
+class SEMPA_Scan:
     """
     Class to import and process SEMPA measurements
     """
