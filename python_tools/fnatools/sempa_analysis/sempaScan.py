@@ -205,6 +205,65 @@ class SEMPA_Scan:
         return (self.channels[2] - self.channels[3]) / \
             (self.channels[2] + self.channels[3])
 
+    def __add__(self, other):
+        if isinstance(other, SEMPA_Scan):
+            newchannels = self.channels + other.channels
+        elif isinstance(other, np.ndarray):
+            newchannels = self.channels + other
+        elif np.isscalar(other):
+            newchannels = self.channels + other
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for +:" +
+                f"'{type(self)}' and '{type(other)}'"
+            )
+
+        newdata = SEMPA_Scan(self)
+        newdata.channels = newchannels
+        return newdata
+
+    def __sub__(self, other):
+        if isinstance(other, SEMPA_Scan):
+            newchannels = self.channels - other.channels
+        elif isinstance(other, np.ndarray):
+            newchannels = self.channels - other
+        elif np.isscalar(other):
+            newchannels = self.channels - other
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for -:" +
+                f"'{type(self)}' and '{type(other)}'"
+            )
+
+        newdata = SEMPA_Scan(self)
+        newdata.channels = newchannels
+        return newdata
+
+    def __mul__(self, other):
+        if np.isscalar(other):
+            newchannels = self.channels * other
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for *:" +
+                f"'{type(self)}' and '{type(other)}'"
+            )
+
+        newdata = SEMPA_Scan(self)
+        newdata.channels = newchannels
+        return newdata
+
+    def __truediv__(self, other):
+        if np.isscalar(other):
+            newchannels = self.channels / other
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for /:" +
+                f"'{type(self)}' and '{type(other)}'"
+            )
+
+        newdata = SEMPA_Scan(self)
+        newdata.channels = newchannels
+        return newdata
 
 
 class Info:
