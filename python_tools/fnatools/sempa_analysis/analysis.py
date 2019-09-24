@@ -93,16 +93,16 @@ class SEMPA_Scan:
             (4, self.axes[1].clock_count, self.axes[3].clock_count),
             order='F'
         )
-        self.channel = np.swapaxes(self.channel, 0, 2)
-        self.channel = np.rot90(self.channel, 2)
-        self.channel = np.rollaxis(self.channel, 2)
+        self.channels = np.swapaxes(self.channels, 0, 2)
+        self.channels = np.rot90(self.channels, 2)
+        self.channels = np.rollaxis(self.channels, 2)
 
-        self.asym12 = (self.channel[0] - self.channel[1]) / \
-            (self.channel[0] + self.channel[1])
-        self.asym34 = (self.channel[2] - self.channel[3]) / \
-            (self.channel[2] + self.channel[3])
+        self.asym12 = (self.channels[0] - self.channels[1]) / \
+            (self.channels[0] + self.channels[1])
+        self.asym34 = (self.channels[2] - self.channels[3]) / \
+            (self.channels[2] + self.channels[3])
 
-        self.sem = np.sum(self.channel, 0)
+        self.sem = np.sum(self.channels, 0)
 
 
 class AxisInfo:
