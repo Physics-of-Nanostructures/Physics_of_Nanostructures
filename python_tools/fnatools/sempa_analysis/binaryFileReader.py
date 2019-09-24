@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import struct
 import io
 
+
 @dataclass
 class BinaryReader:
     filebuffer: io.BufferedReader
