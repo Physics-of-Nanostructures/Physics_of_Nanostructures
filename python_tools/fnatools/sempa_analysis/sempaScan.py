@@ -150,6 +150,8 @@ class SEMPA_Scan:
                     for _ in range(parameter_count)
                 }
 
+        return self
+
     def reshape_data(self):
         self.x = self.axes[1].physical_start_val + \
             np.arange(self.axes[1].clock_count) * \
@@ -158,7 +160,7 @@ class SEMPA_Scan:
             np.arange(self.axes[3].clock_count) * \
             self.axes[3].physical_increment_val
 
-        self.X, self.Y = np.meshgrid(self.x, self.y)
+        # self.X, self.Y = np.meshgrid(self.x, self.y)
 
         self.channels = np.reshape(
             self.raw,
@@ -169,12 +171,22 @@ class SEMPA_Scan:
         self.channels = np.rot90(self.channels, 2)
         self.channels = np.rollaxis(self.channels, 2)
 
-        self.asym12 = (self.channels[0] - self.channels[1]) / \
+        return self
+
+    @property
+    def sem(self):
+        return np.sum(self.channels, 0)
+
+    @property
+    def asym_x(self):
+        return (self.channels[0] - self.channels[1]) / \
             (self.channels[0] + self.channels[1])
-        self.asym34 = (self.channels[2] - self.channels[3]) / \
+
+    @property
+    def asym_y(self):
+        return (self.channels[2] - self.channels[3]) / \
             (self.channels[2] + self.channels[3])
 
-        self.sem = np.sum(self.channels, 0)
 
 
 class Info:
