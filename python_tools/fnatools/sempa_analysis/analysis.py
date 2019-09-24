@@ -88,7 +88,7 @@ class SEMPA_Scan:
 
         self.X, self.Y = np.meshgrid(self.x, self.y)
 
-        self.channel = np.reshape(
+        self.channels = np.reshape(
             self.raw,
             (4, self.axes[1].clock_count, self.axes[3].clock_count),
             order='F'
