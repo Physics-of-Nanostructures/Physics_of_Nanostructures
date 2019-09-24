@@ -263,6 +263,24 @@ class SEMPA_Scan:
         shifted_data.channels = shifted_channels
         return shifted_data
 
+    def crop(self, rect_size=None, rect_position=None):
+        if rect_size is None:
+            raise NotImplementedError("None rect_size not yet implemented")
+        if rect_position is None:
+            raise NotImplementedError("None rect_position not yet implemented")
+
+        idx_x_min = rect_position[0]
+        idx_x_max = rect_position[0] + rect_size[0]
+        idx_y_min = rect_position[1]
+        idx_y_max = rect_position[1] + rect_size[1]
+
+        x = self.x[idx_x_min:idx_x_max]
+        y = self.y[idx_y_min:idx_y_max]
+        channels = self.channels[idx_x_min:idx_x_max, idx_y_min:idx_y_max, :]
+
+        cropped_data = SEMPA_Scan(channels, x, y)
+        return cropped_data
+
     def remove_background(self, kx=3, ky=3, max_order=None):
         background = []
 
