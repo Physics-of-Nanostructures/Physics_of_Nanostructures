@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from .binaryFileReader import BinaryReader
-from dataclasses import dataclass
+from dataclasses import dataclass, InitVar
 from datetime import datetime
 import numpy as np
 
@@ -10,11 +12,27 @@ class SEMPA_Scan:
     Class to import and process SEMPA measurements
     """
 
-    filename: str
+    filename: InitVar[(str, SEMPA_Scan, np.ndarray)] = None
+    x_data: InitVar[np.ndarray] = None
+    y_data: InitVar[np.ndarray] = None
 
-    def __post_init__(self):
-        self.read_file()
-        self.reshape_data()
+    def __post_init__(self, datasource, x_data, y_data):
+        if isinstance(datasource, str):
+            self.filename = datasource
+            self.read_file()
+            self.reshape_data()
+        elif isinstance(datasource, SEMPA_Scan):
+            self.channels = datasource.channels
+            self.x = datasource.x
+            self.y = datasource.y
+        elif isinstance(datasource, np.ndarray):
+            self.channels = datasource
+
+        if isinstance(x_data, np.ndarray):
+            self.x = x_data
+
+        if isinstance(y_data, np.ndarray):
+            self.y = y_data
 
     def read_file(self):
         with open(self.filename, "rb") as file:
