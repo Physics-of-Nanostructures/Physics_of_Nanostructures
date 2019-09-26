@@ -627,37 +627,42 @@ def import_multiple_data(folder, filenames, map_fn=map, min_length=None):
 
 def correct_angle_per_group(dataset, metadata, group_keys,
                             angle_offset=0, auto_correct=True):
-    dataset["angle"] += angle_offset
+    # dataset["angle"] -= angle_offset
+    # dataset["angle_offset"] = angle_offset
+
+    print(auto_correct)
 
     if auto_correct:
-        def sine(phi, phi_0=0, A=1):
-            return A * np.sin(2 * (phi - phi_0))
+        def get_angle_offset(df):
+            # Use quadrature demodulation to get phase shift
+            angle = np.radians(2 * (df.angle - angle_offset))
+            mod_I = np.sin(angle)
+            mod_Q = np.cos(angle)
 
-        sin_model = Model(sine, independent_vars=['phi'])
-        sin_param = sin_model.make_params()
-        sin_param["phi_0"].set(min=-np.pi / 2, max=+np.pi / 2)
-        sin_param["A"].set(min=0)
+            int_I = np.trapz(mod_I * df.harmonic_1_x)
+            int_Q = np.trapz(mod_Q * df.harmonic_1_x)
 
-        def subtract_angle(df):
-            fit_res = sin_model.fit(
-                df.harmonic_1_x,
-                sin_param,
-                phi=np.radians(df.angle)
-            )
+            phase = np.degrees(np.arctan2(int_I, int_Q))
 
-            phi_0 = fit_res.params["phi_0"].value
-            phi_0 = np.degrees(phi_0)
+            phase = phase / 2 - angle_offset
 
-            df["angle"] -= phi_0
+            df["angle_offset"] = phase
+
             return df
 
         dataset = dataset.groupby(
-            group_keys, as_index=False).apply(subtract_angle)
+            group_keys, as_index=False).apply(get_angle_offset)
+        print('did it')
+    else:
+        dataset["angle_offset"] = angle_offset
+        print('did not')
 
+    dataset["angle"] -= dataset["angle_offset"]
     dataset["angle"] = np.mod(dataset["angle"], 360)
     dataset = sort_dataset(dataset)
 
     metadata["manipulations"].append("Angle_corrected")
+    # metadata["angle_offset"] = dataset["angle_offset"].mean()
 
     return dataset, metadata
 
