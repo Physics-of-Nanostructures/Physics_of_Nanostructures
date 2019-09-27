@@ -11,18 +11,6 @@ import numpy as np
 from pathlib import Path
 
 
-# @dataclass
-# class SEMPA_Measurements:
-#     """
-#     Class to import and process SEMPA measurements
-#     """
-
-#     filenames: InitVar[str]
-
-#     def __post_init__(self, filenames):
-#         Path(filenames).glob()
-
-
 @dataclass
 class SEMPA_Scan:
     """
@@ -32,6 +20,11 @@ class SEMPA_Scan:
     datasource: InitVar[(str, SEMPA_Scan, np.ndarray)] = None
     x_data: InitVar[np.ndarray] = None
     y_data: InitVar[np.ndarray] = None
+
+    bg_channels = np.zeros((1, 1, 4))
+    bg_sem = 0
+    bg_asym_x = 0
+    bg_asym_y = 0
 
     def __post_init__(self, datasource, x_data, y_data):
         if isinstance(datasource, str):
@@ -202,38 +195,55 @@ class SEMPA_Scan:
         )
         self.channels = np.swapaxes(self.channels, 0, 2)
         self.channels = np.rot90(self.channels, 2)
+        self.channels = self.channels.astype(float)
 
         return self
 
     @property
-    def sem(self):
-        return np.sum(self.channels, -1)
+    def mesh(self):
+        mesh = Info()
+        mesh.X, mesh.Y = np.meshgrid(self.x, self.y, indexing='ij')
+        return mesh
+
+    @property
+    def X(self):
+        return self.mesh.X
+
+    @property
+    def Y(self):
+        return self.mesh.Y
 
     @property
     def ch1(self):
-        return self.channels[:, :, 0]
+        return self.channels[:, :, 0] - self.bg_channels[:, :, 0]
 
     @property
     def ch2(self):
-        return self.channels[:, :, 1]
+        return self.channels[:, :, 1] - self.bg_channels[:, :, 1]
 
     @property
     def ch3(self):
-        return self.channels[:, :, 2]
+        return self.channels[:, :, 2] - self.bg_channels[:, :, 2]
 
     @property
     def ch4(self):
-        return self.channels[:, :, 3]
+        return self.channels[:, :, 3] - self.bg_channels[:, :, 3]
+
+    @property
+    def sem(self):
+        return np.sum(self.channels, -1) - self.bg_sem
 
     @property
     def asym_x(self):
         return (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
-            (self.channels[:, :, 0] + self.channels[:, :, 1])
+            (self.channels[:, :, 0] + self.channels[:, :, 1]) \
+            - self.bg_asym_x
 
     @property
     def asym_y(self):
         return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
-            (self.channels[:, :, 2] + self.channels[:, :, 3])
+            (self.channels[:, :, 2] + self.channels[:, :, 3]) \
+            - self.bg_asym_y
 
     def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
@@ -254,7 +264,7 @@ class SEMPA_Scan:
 
         shifted_channels = []
 
-        for i in range(4):
+        for i in range(shifted_data.channels.shape[-1]):
             image = np.fft.fftn(shifted_data.channels[:, :, i])
             image = fourier_shift(image, shift)
             shifted_channels.append(np.abs(np.fft.ifftn(image)))
@@ -262,6 +272,33 @@ class SEMPA_Scan:
         shifted_channels = np.stack(shifted_channels, -1)
         shifted_data.channels = shifted_channels
         return shifted_data
+
+    def average(self, dataset=None, drift_correct=True):
+        if isinstance(self, SEMPA_Scan):
+            if isinstance(dataset, SEMPA_Scan):
+                dataset = [dataset]
+            elif isinstance(dataset, list):
+                pass
+            else:
+                TypeError("dataset should be of type SEMPA_Scan or list")
+
+            dataset.insert(0, self)
+
+        if isinstance(self, list):
+            dataset = self
+            self = dataset[0]
+        else:
+            TypeError("self should be of type SEMPA_Scan or list ")
+
+        # Drift_correct_data
+        if drift_correct:
+            for i in range(len(dataset) - 1):
+                dataset[i + 1] = dataset[i + 1].correct_drift(dataset[0])
+
+        # Average
+        average = np.sum(dataset) / len(dataset)
+
+        return average
 
     def crop(self, rect_size=None, rect_position=None):
         if rect_size is None:
@@ -281,89 +318,92 @@ class SEMPA_Scan:
         cropped_data = SEMPA_Scan(channels, x, y)
         return cropped_data
 
-    def remove_background(self, kx=3, ky=3, max_order=None):
-        background = []
+    def calculate_background(self, kx=3, ky=3, max_order=None):
+        args = [self.x, self.y, kx, ky, max_order]
 
-        for i in range(4):
-            channel = self.channels[:, :, i]
-            coefs, _, _, _ = polyfit2d(
-                self.x, self.y, channel, kx=kx, ky=ky, order=max_order
-            )
-            coefs = coefs.reshape((kx + 1, ky + 1))
+        # background per channel
+        bg_channels = [self.__calc_background__(
+            self.channels[:, :, i], *args
+        ) for i in range(self.channels.shape[-1])]
 
-            background.append(
-                np.polynomial.polynomial.polygrid2d(
-                    self.x, self.y, coefs
-                ))
+        bg_channels = np.stack(bg_channels, -1)
 
-        background = np.stack(background, -1)
-        background = np.swapaxes(background, 0, 1)
+        self.bg_channels = bg_channels
 
-        new_data = SEMPA_Scan(self)
-        new_data -= background
-        new_data.background = background
+        # background for composite images
+        self.bg_sem = self.__calc_background__(self.sem, *args)
+        self.bg_asym_x = self.__calc_background__(self.asym_x, *args)
+        self.bg_asym_y = self.__calc_background__(self.asym_y, *args)
 
-        return new_data
+        return self
+
+    @staticmethod
+    def __calc_background__(channel, x, y, kx=3, ky=3, max_order=None):
+        coefs, _, _, _ = polyfit2d(
+            x, y, channel, kx=kx, ky=ky, order=max_order
+        )
+        coefs = coefs.reshape((kx + 1, ky + 1))
+
+        background = np.polynomial.polynomial.polygrid2d(x, y, coefs)
+
+        return background
 
     def __add__(self, other):
-        if isinstance(other, SEMPA_Scan):
-            newchannels = self.channels + other.channels
-        elif isinstance(other, np.ndarray):
-            newchannels = self.channels + other
-        elif np.isscalar(other):
-            newchannels = self.channels + other
-        else:
-            raise TypeError(
-                "unsupported operand type(s) for +:" +
-                f"'{type(self)}' and '{type(other)}'"
-            )
+        other = self.__coerce_to_channel_shape__(other, '+')
 
         newdata = SEMPA_Scan(self)
-        newdata.channels = newchannels
+        newdata.channels = self.channels + other
+
         return newdata
 
     def __sub__(self, other):
-        if isinstance(other, SEMPA_Scan):
-            newchannels = self.channels - other.channels
-        elif isinstance(other, np.ndarray):
-            newchannels = self.channels - other
-        elif np.isscalar(other):
-            newchannels = self.channels - other
-        else:
-            raise TypeError(
-                "unsupported operand type(s) for -:" +
-                f"'{type(self)}' and '{type(other)}'"
-            )
+        other = self.__coerce_to_channel_shape__(other, '-')
 
         newdata = SEMPA_Scan(self)
-        newdata.channels = newchannels
+        newdata.channels = self.channels - other
+
         return newdata
 
     def __mul__(self, other):
-        if np.isscalar(other):
-            newchannels = self.channels * other
-        else:
-            raise TypeError(
-                "unsupported operand type(s) for *:" +
-                f"'{type(self)}' and '{type(other)}'"
-            )
+        other = self.__coerce_to_channel_shape__(other, '*')
 
         newdata = SEMPA_Scan(self)
-        newdata.channels = newchannels
+        newdata.channels = self.channels * other
+
         return newdata
 
     def __truediv__(self, other):
-        if np.isscalar(other):
-            newchannels = self.channels / other
+        other = self.__coerce_to_channel_shape__(other, '/')
+
+        newdata = SEMPA_Scan(self)
+        newdata.channels = self.channels / other
+
+        return newdata
+
+    def __coerce_to_channel_shape__(self, other, operation="coercing"):
+        if isinstance(other, SEMPA_Scan):
+            other = other.channels
+        elif isinstance(other, np.ndarray):
+            if other.shape == self.channels.shape:
+                pass
+            elif other.shape[0:2] == self.channels.shape[0:2] and \
+                    (len(other.shape) == 2 or other.shape[-1] == 1):
+                other = np.tile(other, (self.channels.shape[-1], 1, 1))
+                other = np.moveaxis(other, 0, 2)
+            else:
+                raise ValueError(
+                    "Shape of arrays to add do not match: " +
+                    f"{self.channels.shape} and {other.shape}"
+                )
+        elif np.isscalar(other):
+            other = np.tile(other, self.channels.shape)
         else:
             raise TypeError(
-                "unsupported operand type(s) for /:" +
+                f"unsupported operand type(s) for {operation}:" +
                 f"'{type(self)}' and '{type(other)}'"
             )
 
-        newdata = SEMPA_Scan(self)
-        newdata.channels = newchannels
-        return newdata
+        return other
 
 
 class Info:

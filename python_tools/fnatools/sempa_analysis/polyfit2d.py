@@ -42,7 +42,7 @@ def polyfit2d(x, y, z, kx=3, ky=3, order=None):
     '''
 
     # grid coords
-    x, y = np.meshgrid(x, y)
+    x, y = np.meshgrid(x, y, indexing='ij')
     # coefficient array, up to x^kx, y^ky
     coeffs = np.ones((kx + 1, ky + 1))
 
