@@ -630,8 +630,6 @@ def correct_angle_per_group(dataset, metadata, group_keys,
     # dataset["angle"] -= angle_offset
     # dataset["angle_offset"] = angle_offset
 
-    print(auto_correct)
-
     if auto_correct:
         def get_angle_offset(df):
             # Use quadrature demodulation to get phase shift
@@ -652,10 +650,8 @@ def correct_angle_per_group(dataset, metadata, group_keys,
 
         dataset = dataset.groupby(
             group_keys, as_index=False).apply(get_angle_offset)
-        print('did it')
     else:
         dataset["angle_offset"] = angle_offset
-        print('did not')
 
     dataset["angle"] -= dataset["angle_offset"]
     dataset["angle"] = np.mod(dataset["angle"], 360)
@@ -1104,7 +1100,6 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
                              I_0=subdata.current)
             axes[1].plot(subdata.angle, h2 + offset[1],
                          color=color_fit)
-
 
     if "mask" in subdata:
         for ax in axes:
