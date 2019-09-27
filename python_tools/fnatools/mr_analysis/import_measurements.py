@@ -48,7 +48,7 @@ def pyMeasurement(filename, min_length=None, MD_in_DF=False, lower_case=False):
     data = pandas.read_csv(filename, delimiter=",", comment="#")
 
     if min_length is not None:
-        if len(data) < 802:
+        if len(data) < min_length:
             return None, None
 
     # Convert units if necessary

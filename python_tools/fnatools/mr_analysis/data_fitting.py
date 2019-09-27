@@ -4,10 +4,10 @@
 
 import numpy
 # import pandas
-# import scipy.optimize
+from scipy import optimize 
 # import scipy.special
 from lmfit import Model
-
+from ..stoner_wohlfarth import StonerWohlfarthModel
 
 def hall_voltage_function(phi, phi_0=0, I_0=1, R_PHE=1, R_AHE=1, V_0=0,
                           H_A=0, H=1, phi_E=0, theta_M=90, theta_M0=0):
@@ -92,13 +92,13 @@ def hall_voltage_2nd_harmonic_function(phi, phi_0=0, I_0=1, R_PHE=1,
     gamma : float
         Gyromagnetic ratio (unit unknown)
     tau_ofl : float
-        out-of-plane field-like torque (tau_S in paper)
+        out-of-plane field-like torque (tau_A in paper)
     tau_iad : float
         in-plane damping-like torque (tau_B in paper)
     tau_oad : float
         out-of-plane damping-like torque (not specified in paper)
     tau_ifl : float
-        in-plane field-like torque (tau_A in paper)
+        in-plane field-like torque (tau_S in paper)
 
     Returns
     -------
@@ -286,7 +286,7 @@ def fit_hall_voltage(data, V_column="Lock_In_1_X", I0=1e-3, harmonic=1):
     return result
 
 
-def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
+def simplified_1st_harmonic(phi=0, phi_0=0, theta=90, theta_0=0,
                             I_0=1, R_PHE=1, R_AHE=1, V_0=0):
     """
     Calculate the first harmonic hall voltage based on
@@ -306,9 +306,53 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
         out-of-plane angle offset (degrees)
     I_0 : float
         Measurement current (A)
-    R_PHE_FL : float
+    R_PHE : float
         Planar-Hall resistance (Ohm)
-    R_AHE_DL : float
+    R_AHE : float
+        Anomalous-Hall resistance (Ohm)
+    V_0: float
+        Offset voltage (V)
+
+    Returns
+    -------
+    V1_H : float or numpy.ndarray
+        Second-harmonic Hall voltage
+    """
+    phi_M = numpy.radians(phi) - numpy.radians(phi_0)
+    theta_M = numpy.radians(theta) - numpy.radians(theta_0)
+    C_PHE = numpy.sin(phi_M * 2) * numpy.sin(theta_M)**2
+    C_AHE = numpy.cos(theta_M)
+
+    V1_H = V_0 + I_0 * (R_PHE * C_PHE +
+                        R_AHE * C_AHE)
+    return V1_H
+
+
+def simplified_1st_harmonic_SW(phi=0, phi_0=0, theta=90, theta_0=0,
+                               I_0=1, R_PHE=1, R_AHE=1, V_0=0,
+                               B=1, Ms=1, Ku=1, Nx=1,
+                               Keb=0, theta_eb=0, phi_eb=0):
+    """
+    Calculate the first harmonic hall voltage based on
+    MacNeill et al. (2017) PRB 96, 054450.
+
+    Assumes the magnetization and field direction are identical.
+
+    Parameters
+    ----------
+    phi : float or numpy.ndarray
+        in-plane field angle (degrees)
+    phi_0 : float
+        in-plane angle offset (degrees)
+    theta : float or numpy.ndarray
+        out-of-plane field angle (degrees, 0 == along z-axis)
+    theta_0 : float
+        out-of-plane angle offset (degrees)
+    I_0 : float
+        Measurement current (A)
+    R_PHE : float
+        Planar-Hall resistance (Ohm)
+    R_AHE : float
         Anomalous-Hall resistance (Ohm)
     V_0: float
         Offset voltage (V)
@@ -321,6 +365,22 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
     theta_M = numpy.radians(theta) - numpy.radians(theta_0)
 
+    if isinstance(theta_M, (list, numpy.ndarray)):
+        phi_M = numpy.ones(len(theta_M)) * phi_M
+    elif isinstance(phi_M, (list, numpy.ndarray)):
+        theta_M = numpy.ones(len(phi_M)) * theta_M
+
+    model = StonerWohlfarthModel(Ms, Ku, Nx, Keb, theta_eb, phi_eb)
+    for idx in range(len(theta_M)):
+        out = optimize.minimize(
+            model.energy_3D_minimizer,
+            [theta_M[idx], phi_M[idx]],
+            (theta_M[idx], phi_M[idx], B[idx]),
+            method="Nelder-Mead",
+            options={'xatol': 1e-7, 'fatol': 1e-7}
+        )
+        theta_M[idx], phi_M[idx] = out.x
+
     C_PHE = numpy.sin(phi_M * 2) * numpy.sin(theta_M)**2
     C_AHE = numpy.cos(theta_M)
 
@@ -329,7 +389,7 @@ def simplified_1st_harmonic(phi, phi_0=0, theta=90, theta_0=0,
     return V1_H
 
 
-def simplified_2nd_harmonic(phi, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
+def simplified_2nd_harmonic(phi=0, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
                             R_AHE_DL=1, V_0=0):
     """
     Calculate the second harmonic hall voltage based on equation (2) from
