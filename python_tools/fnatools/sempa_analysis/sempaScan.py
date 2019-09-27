@@ -21,28 +21,30 @@ class SEMPA_Scan:
     x_data: InitVar[np.ndarray] = None
     y_data: InitVar[np.ndarray] = None
 
-    bg_channels = np.zeros((1, 1, 4))
-    bg_sem = 0
-    bg_asym_x = 0
-    bg_asym_y = 0
-
     def __post_init__(self, datasource, x_data, y_data):
         if isinstance(datasource, str):
             self.filename = datasource
             self.read_file()
             self.reshape_data()
+
         elif isinstance(datasource, SEMPA_Scan):
             self.channels = datasource.channels
             self.x = datasource.x
             self.y = datasource.y
+
         elif isinstance(datasource, np.ndarray):
             self.channels = datasource
 
-        if isinstance(x_data, np.ndarray):
-            self.x = x_data
+            if x_data is None or y_data is None:
+                ValueError(
+                    "x_data and y_data should be present when " +
+                    "channel data is provided as np.ndarray"
+                )
 
-        if isinstance(y_data, np.ndarray):
+            self.x = x_data
             self.y = y_data
+
+        self.reset_corrections(datasource)
 
     def read_file(self):
         with open(self.filename, "rb") as file:
@@ -237,13 +239,13 @@ class SEMPA_Scan:
     def asym_x(self):
         return (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
             (self.channels[:, :, 0] + self.channels[:, :, 1]) \
-            - self.bg_asym_x
+            - self.bg_asym_x - self.shift_asym_x
 
     @property
     def asym_y(self):
         return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
             (self.channels[:, :, 2] + self.channels[:, :, 3]) \
-            - self.bg_asym_y
+            - self.bg_asym_y - self.shift_asym_y
 
     def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
@@ -319,6 +321,7 @@ class SEMPA_Scan:
         return cropped_data
 
     def calculate_background(self, kx=3, ky=3, max_order=None):
+        self.reset_corrections()
         args = [self.x, self.y, kx, ky, max_order]
 
         # background per channel
@@ -334,6 +337,43 @@ class SEMPA_Scan:
         self.bg_sem = self.__calc_background__(self.sem, *args)
         self.bg_asym_x = self.__calc_background__(self.asym_x, *args)
         self.bg_asym_y = self.__calc_background__(self.asym_y, *args)
+
+        return self
+
+    def reset_corrections(self, datasource=None):
+        if isinstance(datasource, SEMPA_Scan):
+            self.bg_channels = datasource.bg_channels
+            self.bg_sem = datasource.bg_sem
+            self.bg_asym_x = datasource.bg_asym_x
+            self.bg_asym_y = datasource.bg_asym_y
+
+            self.shift_asym_x = datasource.shift_asym_x
+            self.shift_asym_y = datasource.shift_asym_y
+
+        else:
+            self.bg_channels = np.zeros((1, 1, 4))
+            self.bg_sem = 0
+            self.bg_asym_x = 0
+            self.bg_asym_y = 0
+
+            self.shift_asym_x = 0
+            self.shift_asym_y = 0
+
+        return self
+
+    def center_asymmetry(self, manual=False):
+        self.shift_asym_x = 0
+        self.shift_asym_y = 0
+
+        if manual:
+            NotImplementedError(
+                "Manual asymmetry centring not yet implemented."
+            )
+        else:
+            self.shift_asym_x = np.mean(self.asym_x)
+            self.shift_asym_y = np.mean(self.asym_y)
+
+        print("Implement value range detection")
 
         return self
 
