@@ -11,6 +11,22 @@ import numpy as np
 from pathlib import Path
 
 
+def import_SEMPA_scans(source: str, merge=True, ):
+    source = Path(source)
+
+    if source.is_file():
+        data = SEMPA_Scan(source)
+    elif source.exists():
+        files = source.glob("*.Detector_flat")
+        data = [SEMPA_Scan(file) for file in files]
+        if merge:
+            data = SEMPA_Scan.average(data)
+    else:
+        raise FileNotFoundError("File or directory not found.")
+
+    return data
+
+
 @dataclass
 class SEMPA_Scan:
     """
@@ -22,10 +38,11 @@ class SEMPA_Scan:
     y_data: InitVar[np.ndarray] = None
 
     def __post_init__(self, datasource, x_data, y_data):
-        if isinstance(datasource, str):
+        if isinstance(datasource, (str, Path)):
             self.filename = datasource
             self.read_file()
             self.reshape_data()
+            # print(self.channels.shape)
 
         elif isinstance(datasource, SEMPA_Scan):
             self.channels = datasource.channels
@@ -204,7 +221,7 @@ class SEMPA_Scan:
     @property
     def mesh(self):
         mesh = Info()
-        mesh.X, mesh.Y = np.meshgrid(self.x, self.y, indexing='ij')
+        mesh.X, mesh.Y = np.meshgrid(self.x, self.y)
         return mesh
 
     @property
@@ -249,7 +266,7 @@ class SEMPA_Scan:
 
     def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
-                      channel='sem'):
+                      channel='sem', ret_shift=False):
         if crop_region is not None:
             raise NotImplementedError("cropping not yet implemented")
 
@@ -273,9 +290,13 @@ class SEMPA_Scan:
 
         shifted_channels = np.stack(shifted_channels, -1)
         shifted_data.channels = shifted_channels
-        return shifted_data
 
-    def average(self, dataset=None, drift_correct=True):
+        if ret_shift:
+            return shifted_data, shift
+        else:
+            return shifted_data
+
+    def average(self, dataset=None, drift_correct=True, crop_drift=True):
         if isinstance(self, SEMPA_Scan):
             if isinstance(dataset, SEMPA_Scan):
                 dataset = [dataset]
@@ -293,20 +314,46 @@ class SEMPA_Scan:
             TypeError("self should be of type SEMPA_Scan or list ")
 
         # Drift_correct_data
+        shifts = np.zeros(2)
         if drift_correct:
             for i in range(len(dataset) - 1):
-                dataset[i + 1] = dataset[i + 1].correct_drift(dataset[0])
+                dataset[i + 1], shift = \
+                    dataset[i + 1].correct_drift(dataset[0], ret_shift=True)
+
+                shifts[0] = np.max([shifts[0], np.abs(shift[0])])
+                shifts[1] = np.max([shifts[1], np.abs(shift[1])])
+
+            shifts = np.ceil(shifts) + 1
 
         # Average
         average = np.sum(dataset) / len(dataset)
 
+        if drift_correct and crop_drift:
+            average = average.crop(edge=shifts)
+
         return average
 
-    def crop(self, rect_size=None, rect_position=None):
-        if rect_size is None:
-            raise NotImplementedError("None rect_size not yet implemented")
+    def crop(self, rect_size=None, rect_position=None, edge=None):
+        if rect_size is not None:
+            pass
+        elif edge is not None:
+            if np.isscalar(edge):
+                edge = np.array([edge, edge])
+            elif isinstance(edge, (list, tuple)):
+                edge = np.array(edge)
+
+            edge = edge.astype(int)
+
+            rect_size = self.channels.shape[0:2] - edge * 2
+        else:
+            raise NotImplementedError(
+                "None rect_size and edge not yet implemented")
+
+        if isinstance(rect_size, (list, tuple)):
+            rect_size = np.array(rect_size)
+
         if rect_position is None:
-            raise NotImplementedError("None rect_position not yet implemented")
+            rect_position = (self.channels.shape[0:2] - rect_size) // 2
 
         idx_x_min = rect_position[0]
         idx_x_max = rect_position[0] + rect_size[0]
@@ -315,7 +362,7 @@ class SEMPA_Scan:
 
         x = self.x[idx_x_min:idx_x_max]
         y = self.y[idx_y_min:idx_y_max]
-        channels = self.channels[idx_x_min:idx_x_max, idx_y_min:idx_y_max, :]
+        channels = self.channels[idx_y_min:idx_y_max, idx_x_min:idx_x_max, :]
 
         cropped_data = SEMPA_Scan(channels, x, y)
         return cropped_data
@@ -377,6 +424,11 @@ class SEMPA_Scan:
 
         return self
 
+    def process(self):
+        self.calculate_background()
+        self.center_asymmetry()
+        return self
+
     @staticmethod
     def __calc_background__(channel, x, y, kx=3, ky=3, max_order=None):
         coefs, _, _, _ = polyfit2d(
@@ -386,7 +438,7 @@ class SEMPA_Scan:
 
         background = np.polynomial.polynomial.polygrid2d(x, y, coefs)
 
-        return background
+        return background.T
 
     def __add__(self, other):
         other = self.__coerce_to_channel_shape__(other, '+')
