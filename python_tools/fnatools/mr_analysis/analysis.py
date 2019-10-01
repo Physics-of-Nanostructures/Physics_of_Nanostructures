@@ -30,6 +30,7 @@ class hallMeasurement:
     mask_angle: {float, None} = None
     mask_width: {float, None} = None
     include_τB: bool = True
+    min_field: float = 0.
 
     analyse_and_plot: InitVar[bool] = False
     use_tqdm_gui: InitVar[bool] = False
@@ -88,7 +89,9 @@ class hallMeasurement:
              "harmonic_2_x", "harmonic_2_y", "harmonic_2_r", ]
         )
         self.average_per_group(
-            ["temperature_sp", "magnetic_field", "angle"]
+            ["temperature_sp", "magnetic_field", "angle"],
+            std_keys=["harmonic_1_x", "harmonic_1_y", "harmonic_1_r",
+                      "harmonic_2_x", "harmonic_2_y", "harmonic_2_r", ]
         )
         self.Data, self.MData = correct_angle_per_group(
             self.Data, self.MData,
@@ -148,7 +151,7 @@ class hallMeasurement:
     def individual_analysis_f2(self):
         self.results_f1, self.results_f2 = results_f1_analysis(
             self.results_f1,
-            min_field=0,
+            min_field=self.min_field,
         )
 
     def AHE_analysis(self):
