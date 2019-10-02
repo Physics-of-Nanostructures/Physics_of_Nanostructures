@@ -4,6 +4,7 @@ from .binaryFileReader import BinaryReader
 from .polyfit2d import polyfit2d
 from dataclasses import dataclass, InitVar
 from datetime import datetime
+import matplotlib.pyplot as plt
 from skimage.transform import rescale
 from skimage.feature import register_translation
 from scipy.ndimage import fourier_shift
@@ -264,6 +265,14 @@ class SEMPA_Scan:
             (self.channels[:, :, 2] + self.channels[:, :, 3]) \
             - self.bg_asym_y - self.shift_asym_y
 
+    @property
+    def angle(self):
+        return np.arctan2(self.asym_y, self.asym_x)
+
+    @property
+    def mag(self):
+        return np.sqrt(self.asym_y**2 + self.asym_x**2)
+
     def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
                       channel='sem', ret_shift=False):
@@ -408,7 +417,7 @@ class SEMPA_Scan:
 
         return self
 
-    def center_asymmetry(self, manual=False):
+    def center_asymmetry(self, manual=False, show_histogram=False):
         self.shift_asym_x = 0
         self.shift_asym_y = 0
 
@@ -417,10 +426,20 @@ class SEMPA_Scan:
                 "Manual asymmetry centring not yet implemented."
             )
         else:
-            self.shift_asym_x = np.mean(self.asym_x)
-            self.shift_asym_y = np.mean(self.asym_y)
+            shift_asym_x = np.mean(self.asym_x)
+            shift_asym_y = np.mean(self.asym_y)
 
         print("Implement value range detection")
+
+        if show_histogram:
+            asym_x = self.asym_x.flatten()
+            asym_y = self.asym_y.flatten()
+
+            plt.plot(asym_x, asym_y, '.')
+            pass
+
+        self.shift_asym_x = shift_asym_x
+        self.shift_asym_y = shift_asym_y
 
         return self
 
