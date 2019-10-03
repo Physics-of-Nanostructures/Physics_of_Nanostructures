@@ -5,6 +5,8 @@ from .polyfit2d import polyfit2d
 from dataclasses import dataclass, InitVar
 from datetime import datetime
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpp
+import matplotlib.colors as mpc
 from skimage.transform import rescale
 from skimage.feature import register_translation
 from scipy.ndimage import fourier_shift
@@ -405,6 +407,7 @@ class SEMPA_Scan:
 
             self.shift_asym_x = datasource.shift_asym_x
             self.shift_asym_y = datasource.shift_asym_y
+            self.range_asym = datasource.range_asym
 
         else:
             self.bg_channels = np.zeros((1, 1, 4))
@@ -414,32 +417,57 @@ class SEMPA_Scan:
 
             self.shift_asym_x = 0
             self.shift_asym_y = 0
+            self.range_asym = 0
+            self.norm = mpc.NoNorm()
 
         return self
 
     def center_asymmetry(self, manual=False, show_histogram=False):
         self.shift_asym_x = 0
         self.shift_asym_y = 0
+        self.range_asym = 0
+        self.norm = mpc.NoNorm()
+
+        asym_x_fl = self.asym_x.flatten()
+        asym_y_fl = self.asym_y.flatten()
+
+        if manual or show_histogram:
+
+            fig, ax = plt.subplots(1, 1)
+            ax.set_title('2D asymmetry histogram')
+            ax.set_xlabel('x-asymmetry')
+            ax.set_ylabel('y-asymmetry')
+            ax.set_aspect('equal')
+
+            ax.plot(asym_x_fl, asym_y_fl, '.')
 
         if manual:
             NotImplementedError(
                 "Manual asymmetry centring not yet implemented."
             )
         else:
-            shift_asym_x = np.mean(self.asym_x)
-            shift_asym_y = np.mean(self.asym_y)
+            shift_asym_x = np.mean(asym_x_fl)
+            shift_asym_y = np.mean(asym_y_fl)
 
-        print("Implement value range detection")
+            radii = np.sqrt((asym_x_fl - shift_asym_x)**2 +
+                            (asym_y_fl - shift_asym_y)**2)
+
+            asym_range = np.mean(radii) + 2 * np.std(radii)
 
         if show_histogram:
-            asym_x = self.asym_x.flatten()
-            asym_y = self.asym_y.flatten()
+            circle = mpp.Circle((shift_asym_x, shift_asym_y), asym_range,
+                                fill=False, ec='k', zorder=5)
 
-            plt.plot(asym_x, asym_y, '.')
-            pass
+            ax.add_patch(circle)
+
+            percentile = np.sum(radii < asym_range) / len(asym_x_fl)
+            ax.set_title('2D asymmetry histogram\n' +
+                         f'{percentile:.2%} of the data lies within the range')
 
         self.shift_asym_x = shift_asym_x
         self.shift_asym_y = shift_asym_y
+        self.asym_range = asym_range
+        self.norm = mpc.DivergingNorm(0, vmin=-asym_range, vmax=asym_range)
 
         return self
 
