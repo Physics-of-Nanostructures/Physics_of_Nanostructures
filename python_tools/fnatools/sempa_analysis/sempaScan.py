@@ -4,11 +4,30 @@ from .binaryFileReader import BinaryReader
 from .polyfit2d import polyfit2d
 from dataclasses import dataclass, InitVar
 from datetime import datetime
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpp
+import matplotlib.colors as mpc
 from skimage.transform import rescale
 from skimage.feature import register_translation
 from scipy.ndimage import fourier_shift
 import numpy as np
 from pathlib import Path
+
+
+def import_SEMPA_scans(source: str, merge=True, ):
+    source = Path(source)
+
+    if source.is_file():
+        data = SEMPA_Scan(source)
+    elif source.exists():
+        files = source.glob("*.Detector_flat")
+        data = [SEMPA_Scan(file) for file in files]
+        if merge:
+            data = SEMPA_Scan.average(data)
+    else:
+        raise FileNotFoundError("File or directory not found.")
+
+    return data
 
 
 @dataclass
@@ -21,28 +40,31 @@ class SEMPA_Scan:
     x_data: InitVar[np.ndarray] = None
     y_data: InitVar[np.ndarray] = None
 
-    bg_channels = np.zeros((1, 1, 4))
-    bg_sem = 0
-    bg_asym_x = 0
-    bg_asym_y = 0
-
     def __post_init__(self, datasource, x_data, y_data):
-        if isinstance(datasource, str):
+        if isinstance(datasource, (str, Path)):
             self.filename = datasource
             self.read_file()
             self.reshape_data()
+            # print(self.channels.shape)
+
         elif isinstance(datasource, SEMPA_Scan):
             self.channels = datasource.channels
             self.x = datasource.x
             self.y = datasource.y
+
         elif isinstance(datasource, np.ndarray):
             self.channels = datasource
 
-        if isinstance(x_data, np.ndarray):
-            self.x = x_data
+            if x_data is None or y_data is None:
+                ValueError(
+                    "x_data and y_data should be present when " +
+                    "channel data is provided as np.ndarray"
+                )
 
-        if isinstance(y_data, np.ndarray):
+            self.x = x_data
             self.y = y_data
+
+        self.reset_corrections(datasource)
 
     def read_file(self):
         with open(self.filename, "rb") as file:
@@ -202,7 +224,7 @@ class SEMPA_Scan:
     @property
     def mesh(self):
         mesh = Info()
-        mesh.X, mesh.Y = np.meshgrid(self.x, self.y, indexing='ij')
+        mesh.X, mesh.Y = np.meshgrid(self.x, self.y)
         return mesh
 
     @property
@@ -237,17 +259,25 @@ class SEMPA_Scan:
     def asym_x(self):
         return (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
             (self.channels[:, :, 0] + self.channels[:, :, 1]) \
-            - self.bg_asym_x
+            - self.bg_asym_x - self.shift_asym_x
 
     @property
     def asym_y(self):
         return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
             (self.channels[:, :, 2] + self.channels[:, :, 3]) \
-            - self.bg_asym_y
+            - self.bg_asym_y - self.shift_asym_y
+
+    @property
+    def angle(self):
+        return np.arctan2(self.asym_y, self.asym_x)
+
+    @property
+    def mag(self):
+        return np.sqrt(self.asym_y**2 + self.asym_x**2)
 
     def correct_drift(self, source_data: SEMPA_Scan,
                       crop_region=None, upsample_factor=100,
-                      channel='sem'):
+                      channel='sem', ret_shift=False):
         if crop_region is not None:
             raise NotImplementedError("cropping not yet implemented")
 
@@ -271,9 +301,13 @@ class SEMPA_Scan:
 
         shifted_channels = np.stack(shifted_channels, -1)
         shifted_data.channels = shifted_channels
-        return shifted_data
 
-    def average(self, dataset=None, drift_correct=True):
+        if ret_shift:
+            return shifted_data, shift
+        else:
+            return shifted_data
+
+    def average(self, dataset=None, drift_correct=True, crop_drift=True):
         if isinstance(self, SEMPA_Scan):
             if isinstance(dataset, SEMPA_Scan):
                 dataset = [dataset]
@@ -291,20 +325,46 @@ class SEMPA_Scan:
             TypeError("self should be of type SEMPA_Scan or list ")
 
         # Drift_correct_data
+        shifts = np.zeros(2)
         if drift_correct:
             for i in range(len(dataset) - 1):
-                dataset[i + 1] = dataset[i + 1].correct_drift(dataset[0])
+                dataset[i + 1], shift = \
+                    dataset[i + 1].correct_drift(dataset[0], ret_shift=True)
+
+                shifts[0] = np.max([shifts[0], np.abs(shift[0])])
+                shifts[1] = np.max([shifts[1], np.abs(shift[1])])
+
+            shifts = np.ceil(shifts) + 1
 
         # Average
         average = np.sum(dataset) / len(dataset)
 
+        if drift_correct and crop_drift:
+            average = average.crop(edge=shifts)
+
         return average
 
-    def crop(self, rect_size=None, rect_position=None):
-        if rect_size is None:
-            raise NotImplementedError("None rect_size not yet implemented")
+    def crop(self, rect_size=None, rect_position=None, edge=None):
+        if rect_size is not None:
+            pass
+        elif edge is not None:
+            if np.isscalar(edge):
+                edge = np.array([edge, edge])
+            elif isinstance(edge, (list, tuple)):
+                edge = np.array(edge)
+
+            edge = edge.astype(int)
+
+            rect_size = self.channels.shape[0:2] - edge * 2
+        else:
+            raise NotImplementedError(
+                "None rect_size and edge not yet implemented")
+
+        if isinstance(rect_size, (list, tuple)):
+            rect_size = np.array(rect_size)
+
         if rect_position is None:
-            raise NotImplementedError("None rect_position not yet implemented")
+            rect_position = (self.channels.shape[0:2] - rect_size) // 2
 
         idx_x_min = rect_position[0]
         idx_x_max = rect_position[0] + rect_size[0]
@@ -313,12 +373,13 @@ class SEMPA_Scan:
 
         x = self.x[idx_x_min:idx_x_max]
         y = self.y[idx_y_min:idx_y_max]
-        channels = self.channels[idx_x_min:idx_x_max, idx_y_min:idx_y_max, :]
+        channels = self.channels[idx_y_min:idx_y_max, idx_x_min:idx_x_max, :]
 
         cropped_data = SEMPA_Scan(channels, x, y)
         return cropped_data
 
     def calculate_background(self, kx=3, ky=3, max_order=None):
+        self.reset_corrections()
         args = [self.x, self.y, kx, ky, max_order]
 
         # background per channel
@@ -337,6 +398,84 @@ class SEMPA_Scan:
 
         return self
 
+    def reset_corrections(self, datasource=None):
+        if isinstance(datasource, SEMPA_Scan):
+            self.bg_channels = datasource.bg_channels
+            self.bg_sem = datasource.bg_sem
+            self.bg_asym_x = datasource.bg_asym_x
+            self.bg_asym_y = datasource.bg_asym_y
+
+            self.shift_asym_x = datasource.shift_asym_x
+            self.shift_asym_y = datasource.shift_asym_y
+            self.range_asym = datasource.range_asym
+
+        else:
+            self.bg_channels = np.zeros((1, 1, 4))
+            self.bg_sem = 0
+            self.bg_asym_x = 0
+            self.bg_asym_y = 0
+
+            self.shift_asym_x = 0
+            self.shift_asym_y = 0
+            self.range_asym = 0
+            self.norm = mpc.NoNorm()
+
+        return self
+
+    def center_asymmetry(self, manual=False, show_histogram=False):
+        self.shift_asym_x = 0
+        self.shift_asym_y = 0
+        self.range_asym = 0
+        self.norm = mpc.NoNorm()
+
+        asym_x_fl = self.asym_x.flatten()
+        asym_y_fl = self.asym_y.flatten()
+
+        if manual or show_histogram:
+
+            fig, ax = plt.subplots(1, 1)
+            ax.set_title('2D asymmetry histogram')
+            ax.set_xlabel('x-asymmetry')
+            ax.set_ylabel('y-asymmetry')
+            ax.set_aspect('equal')
+
+            ax.plot(asym_x_fl, asym_y_fl, '.')
+
+        if manual:
+            NotImplementedError(
+                "Manual asymmetry centring not yet implemented."
+            )
+        else:
+            shift_asym_x = np.mean(asym_x_fl)
+            shift_asym_y = np.mean(asym_y_fl)
+
+            radii = np.sqrt((asym_x_fl - shift_asym_x)**2 +
+                            (asym_y_fl - shift_asym_y)**2)
+
+            asym_range = np.mean(radii) + 2 * np.std(radii)
+
+        if show_histogram:
+            circle = mpp.Circle((shift_asym_x, shift_asym_y), asym_range,
+                                fill=False, ec='k', zorder=5)
+
+            ax.add_patch(circle)
+
+            percentile = np.sum(radii < asym_range) / len(asym_x_fl)
+            ax.set_title('2D asymmetry histogram\n' +
+                         f'{percentile:.2%} of the data lies within the range')
+
+        self.shift_asym_x = shift_asym_x
+        self.shift_asym_y = shift_asym_y
+        self.asym_range = asym_range
+        self.norm = mpc.DivergingNorm(0, vmin=-asym_range, vmax=asym_range)
+
+        return self
+
+    def process(self):
+        self.calculate_background()
+        self.center_asymmetry()
+        return self
+
     @staticmethod
     def __calc_background__(channel, x, y, kx=3, ky=3, max_order=None):
         coefs, _, _, _ = polyfit2d(
@@ -346,7 +485,7 @@ class SEMPA_Scan:
 
         background = np.polynomial.polynomial.polygrid2d(x, y, coefs)
 
-        return background
+        return background.T
 
     def __add__(self, other):
         other = self.__coerce_to_channel_shape__(other, '+')
