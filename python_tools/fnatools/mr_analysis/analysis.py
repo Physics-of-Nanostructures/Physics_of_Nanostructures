@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ import copy
 import tqdm
 from typing import Callable
 import warnings
+import pickle
 from .import_measurements import pyMeasurement
 from .data_fitting import *
 
@@ -31,6 +33,7 @@ class hallMeasurement:
     mask_width: {float, None} = None
     include_τB: bool = True
     min_field: float = 0.
+    lock_in_harmonics: list = None
 
     analyse_and_plot: InitVar[bool] = False
     use_tqdm_gui: InitVar[bool] = False
@@ -267,15 +270,20 @@ class hallMeasurement:
             li2_harmonics = self.Data["lock_in_2_harmonic"].unique()
         except KeyError:
             print("No harmonics columns in data")
-            return self.Data, self.MData
+            if self.lock_in_harmonics is not None:
+                li1_harmonic = self.lock_in_harmonics[0]
+                li2_harmonic = self.lock_in_harmonics[1]
+            else:
+                return self.Data, self.MData
+        else:
+            if len(li1_harmonics) != 1 or len(li2_harmonics) != 1:
+                warnings.warn("Harmonics are not uniform for entire dataset")
+                return self.Data, self.MData
 
-        li1_harmonic = int(li1_harmonics[0])
-        li2_harmonic = int(li2_harmonics[0])
+            li1_harmonic = int(li1_harmonics[0])
+            li2_harmonic = int(li2_harmonics[0])
 
-        if len(li1_harmonics) != 1 or len(li2_harmonics) != 1:
-            warnings.warn("Harmonics are not uniform for entire dataset")
-            return self.Data, self.MData
-        elif li1_harmonic == li2_harmonic:
+        if li1_harmonic == li2_harmonic:
             warnings.warn("Both lock-ins measured the same harmonic, using 2")
             li2_harmonic = 0
 
@@ -290,7 +298,7 @@ class hallMeasurement:
         self.Data.drop([
             "lock_in_1_harmonic",
             "lock_in_2_harmonic",
-        ], axis=1, inplace=True)
+        ], axis=1, inplace=True, errors="ignore")
 
         try:
             self.Data["harmonic_1_r"] = np.sqrt(self.Data["harmonic_1_x"]**2 +
@@ -363,14 +371,14 @@ class hallMeasurement:
                 no_source + "_f",
             ])
 
-        self.Data.drop(columns=drop_keys, inplace=True)
+        self.Data.drop(columns=drop_keys, inplace=True, errors="ignore")
 
         if isinstance(self.MData, dict):
 
             if "Units" in self.MData:
                 for old_key, new_key in replacements.items():
                     self.MData["Units"][new_key] = self.MData["Units"].pop(
-                        old_key)
+                        old_key, None)
 
                 for drop_key in drop_keys:
                     self.MData["Units"].pop(drop_key, None)
@@ -547,6 +555,34 @@ class hallMeasurement:
                 self.MData["manipulations"].append("Binned_and_averaged")
 
         return self.Data, self.MData
+
+    def save_pickle(self, filename=None, overwrite=False):
+        if filename is None:
+            filename = self.path
+            filename = filename.rstrip('/\\')
+            filename += '.p'
+
+        if not overwrite:
+            if os.path.exists(filename):
+                raise FileExistsError('File to pickle to already exists.')
+
+        map_fn = self.map_fn
+        self.map_fn = map
+
+        with open(filename, "wb") as file:
+            pickle.dump(self, file)
+
+        self.map_fn = map_fn
+
+    @classmethod
+    def load_pickle(cls, filename, map_fn=None):
+        with open(filename, "rb") as file:
+            instance = pickle.load(file)
+
+        if map_fn is not None:
+            instance.map_fn = map_fn
+
+        return instance
 
 
 def import_multiple_data(folder, filenames, map_fn=map, min_length=None):
@@ -1077,32 +1113,36 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
         if "harmonic_1_x" in data:
             axes[0].plot(subdata.angle, subdata["harmonic_1_x"] + offset[0],
                          '.', color=color)
+
+            if "harmonic_1_fit" in subdata:
+                axes[0].plot(subdata.angle,
+                             subdata["harmonic_1_fit"] + offset[0],
+                             color=color_fit)
+            elif h1_fit is not None:
+                h1 = h1_fit.eval(phi=subdata.angle,
+                                 H=subdata.magnetic_field,
+                                 I_0=subdata.current)
+                axes[0].plot(subdata.angle, h1 + offset[0],
+                             color=color_fit)
+
             offset[0] += 2 * np.std(data["harmonic_1_x"])
 
         if "harmonic_2_y" in data:
             axes[1].plot(subdata.angle, subdata["harmonic_2_y"] + offset[1],
                          '.', color=color)
+
+            if "harmonic_2_fit" in subdata:
+                axes[1].plot(subdata.angle,
+                             subdata["harmonic_2_fit"] + offset[1],
+                             color=color_fit)
+            elif h2_fit is not None:
+                h2 = h2_fit.eval(phi=subdata.angle,
+                                 H=subdata.magnetic_field,
+                                 I_0=subdata.current)
+                axes[1].plot(subdata.angle, h2 + offset[1],
+                             color=color_fit)
+
             offset[1] += 2 * np.std(data["harmonic_2_y"])
-
-        if "harmonic_1_fit" in subdata:
-            axes[0].plot(subdata.angle, subdata["harmonic_1_fit"] + offset[0],
-                         color=color_fit)
-        elif h1_fit is not None:
-            h1 = h1_fit.eval(phi=subdata.angle,
-                             H=subdata.magnetic_field,
-                             I_0=subdata.current)
-            axes[0].plot(subdata.angle, h1 + offset[0],
-                         color=color_fit)
-
-        if "harmonic_2_fit" in subdata:
-            axes[1].plot(subdata.angle, subdata["harmonic_2_fit"] + offset[1],
-                         color=color_fit)
-        elif h2_fit is not None:
-            h2 = h2_fit.eval(phi=subdata.angle,
-                             H=subdata.magnetic_field,
-                             I_0=subdata.current)
-            axes[1].plot(subdata.angle, h2 + offset[1],
-                         color=color_fit)
 
     if "mask" in subdata:
         for ax in axes:
@@ -1270,9 +1310,9 @@ def plot_fit_results(results, group_key="temperature_sp",
 
                 if plkey + "_std" in result:
                     y_error = result[plkey + "_std"]
-                elif isinstance(y.iloc[0], Variable):
-                    y = y.agg(nominal_value)
-                    y_error = y.agg(std_dev)
+                # elif isinstance(y.iloc[0], Variable):
+                #     y = y.agg(nominal_value)
+                #     y_error = y.agg(std_dev)
                 else:
                     y_error = None
 
@@ -1307,9 +1347,9 @@ def plot_fit_results(results, group_key="temperature_sp",
 
             if plkey + "_std" in result:
                 y_error = result[plkey + "_std"]
-            elif isinstance(y.iloc[0], Variable):
-                y = y.agg(nominal_value)
-                y_error = y.agg(std_dev)
+            # elif isinstance(y.iloc[0], Variable):
+            #     y = y.agg(nominal_value)
+            #     y_error = y.agg(std_dev)
             else:
                 y_error = None
 
