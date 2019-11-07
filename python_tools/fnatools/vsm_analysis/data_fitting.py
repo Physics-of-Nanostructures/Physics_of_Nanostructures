@@ -111,7 +111,9 @@ def fit_hysteresis(data: pandas.DataFrame):
     return output_params, output_errors
 
 
-def background_subtraction(data, keep_uncorrected: bool = False,
+def background_subtraction(data, sort_column="Time_Stamp",
+                           x_column="Induction", y_column="Moment",
+                           keep_uncorrected: bool = False, order=1,
                            slope_error: float = 1e-2, edge_points: int = 4,
                            use_field_weights: bool = True):
     """
@@ -125,6 +127,12 @@ def background_subtraction(data, keep_uncorrected: bool = False,
     ----------
     data : pandas.DataFrame
         Measurement that is to be corrected.
+    sort_column : str
+        column name used for sorting prior and after the background subtraction
+    x_column: str
+        column name used as x-axis for background subtraction
+    y_column: str
+        column name that is to be background subtracted
     keep_uncorrected : bool
         Keep the uncorrected moment as a new column ("Moment_uncorrected") in
         the DataFrame.
@@ -150,15 +158,18 @@ def background_subtraction(data, keep_uncorrected: bool = False,
         background, among other intermediate results.
     """
 
+    if order not in [0, 1, 2]:
+        raise NotImplementedError("order can only be 0, 1, or 2.")
+
     data = data.copy()
     background_parameters = {}
     offset = 0
     slope = 0
 
-    data.sort_values("Time_Stamp", inplace=True)
+    data.sort_values(sort_column, inplace=True)
 
-    field = numpy.array(data["Induction"])
-    moment = numpy.array(data["Moment"])
+    field = numpy.array(data[x_column])
+    moment = numpy.array(data[y_column])
     d2moment = numpy.abs(numpy.gradient(numpy.gradient(moment, field), field))
     d2moment = numpy.nan_to_num(d2moment)
 
@@ -174,19 +185,21 @@ def background_subtraction(data, keep_uncorrected: bool = False,
 
     # Linear at lower field
     idx = numpy.argmax(d2moment[edge_points:] > maxval) + edge_points
+    print(idx)
 
     if use_field_weights:
         w = numpy.tanh(numpy.abs(field[:idx]) / 250)
     else:
         w = None
 
-    p = numpy.polyfit(field[:idx], moment[:idx], 1, w=w)
-    slope1, offset1 = p[0], p[1]
+    p1 = numpy.polyfit(field[:idx], moment[:idx], order, w=w)
+    # slope1, offset1 = p[0], p[1]
 
     background_parameters.update({"f1": field, "m1": moment, "d1": d2moment})
     background_parameters.update(
         {"F1": field[:idx], "M1": moment[:idx], "D1": d2moment[:idx]})
-    background_parameters.update({"offset1": offset1, "slope1": slope1})
+    background_parameters.update({"poly_params1": p1})
+    # background_parameters.update({"offset1": offset1, "slope1": slope1})
 
     # Invert arrays
     field = field[::-1]
@@ -195,31 +208,36 @@ def background_subtraction(data, keep_uncorrected: bool = False,
 
     # Linear at higher field
     idx = numpy.argmax(d2moment[edge_points:] > maxval) + edge_points
+    print(idx)
 
     if use_field_weights:
         w = numpy.tanh(numpy.abs(field[:idx]) / 250)
     else:
         w = None
 
-    p = numpy.polyfit(field[:idx], moment[:idx], 1, w=w)
-    slope2, offset2 = p[0], p[1]
+    p2 = numpy.polyfit(field[:idx], moment[:idx], order, w=w)
+    # slope2, offset2 = p[0], p[1]
 
     background_parameters.update({"f2": field, "m2": moment, "d2": d2moment})
     background_parameters.update(
         {"F2": field[:idx], "M2": moment[:idx], "D2": d2moment[:idx]})
-    background_parameters.update({"offset2": offset2, "slope2": slope2})
+    # background_parameters.update({"offset2": offset2, "slope2": slope2})
+    background_parameters.update({"poly_params2": p2})
 
     # Average slopes and offsets
-    slope = (slope1 + slope2) / 2
-    offset = (offset1 + offset2) / 2
+    # slope = (slope1 + slope2) / 2
+    # offset = (offset1 + offset2) / 2
+    p_avg = numpy.mean([p1, p2], axis=0)
 
-    background_parameters.update({"offset": offset, "slope": slope})
+    # background_parameters.update({"offset": offset, "slope": slope})
+    background_parameters.update({"poly_params": p_avg})
 
     # Correct the measured moment
     if keep_uncorrected:
-        data["Moment_uncorrected"] = data["Moment"]
-    data["Moment"] -= offset + data["Induction"] * slope
+        data[y_column + "_uncorrected"] = data[y_column]
+    data[y_column] -= numpy.polyval(p_avg, data[x_column])
+    # data[y_column] -= offset + data[x_column] * slope
 
-    data.sort_values("Time_Stamp", inplace=True)
+    data.sort_values(sort_column, inplace=True)
 
     return data, background_parameters
