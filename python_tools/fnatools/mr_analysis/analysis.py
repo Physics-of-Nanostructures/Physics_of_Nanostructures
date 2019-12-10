@@ -546,7 +546,8 @@ class hallMeasurement:
             std = datagroup.std()
 
             for key in std_keys:
-                self.Data[key + "_std"] = std[key]
+                if key in std:
+                    self.Data[key + "_std"] = std[key]
 
         self.Data.reset_index(drop=True, inplace=True)
 
@@ -1112,35 +1113,35 @@ def plot_measurements(data, subgroup_key=None, key_range=None):
 
         if "harmonic_1_x" in data:
             axes[0].plot(subdata.angle, subdata["harmonic_1_x"] + offset[0],
-                         '.', color=color)
+                         '.', color=color, label=f"{key}")
 
             if "harmonic_1_fit" in subdata:
                 axes[0].plot(subdata.angle,
                              subdata["harmonic_1_fit"] + offset[0],
-                             color=color_fit)
+                             color=color_fit, label=f"{key}_fit")
             elif h1_fit is not None:
                 h1 = h1_fit.eval(phi=subdata.angle,
                                  H=subdata.magnetic_field,
                                  I_0=subdata.current)
                 axes[0].plot(subdata.angle, h1 + offset[0],
-                             color=color_fit)
+                             color=color_fit, label=f"{key}_fit")
 
             offset[0] += 2 * np.std(data["harmonic_1_x"])
 
         if "harmonic_2_y" in data:
             axes[1].plot(subdata.angle, subdata["harmonic_2_y"] + offset[1],
-                         '.', color=color)
+                         '.', color=color, label=f"{key}")
 
             if "harmonic_2_fit" in subdata:
                 axes[1].plot(subdata.angle,
                              subdata["harmonic_2_fit"] + offset[1],
-                             color=color_fit)
+                             color=color_fit, label=f"{key}_fit")
             elif h2_fit is not None:
                 h2 = h2_fit.eval(phi=subdata.angle,
                                  H=subdata.magnetic_field,
                                  I_0=subdata.current)
                 axes[1].plot(subdata.angle, h2 + offset[1],
-                             color=color_fit)
+                             color=color_fit, label=f"{key}_fit")
 
             offset[1] += 2 * np.std(data["harmonic_2_y"])
 
