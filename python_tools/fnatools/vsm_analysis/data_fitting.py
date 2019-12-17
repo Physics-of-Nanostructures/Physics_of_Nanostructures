@@ -111,6 +111,7 @@ def fit_hysteresis(data: pandas.DataFrame):
     return output_params, output_errors
 
 
+## DO NOT UPDATE, OBSOLETE
 def background_subtraction(data, sort_column="Time_Stamp",
                            x_column="Induction", y_column="Moment",
                            keep_uncorrected: bool = False, order=1,
