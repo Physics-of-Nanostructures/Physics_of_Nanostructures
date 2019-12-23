@@ -137,15 +137,21 @@ def mpms3(filename, keep_columns=False, no_print=False):
     for column in columns:
         if column == "Comment":
             continue
-        name, unit = column.split(" (", maxsplit=1)
+
+        try:
+            name, unit = column.split(" (", maxsplit=1)
+        except ValueError:
+            name = column
+        else:
+            unit = unit.strip()
+            unit = unit.replace(")", "")
+            units[name] = unit
+
         name = name.strip()
         name = re.sub(r"\W|^(?=\d)", "_", name)
         name = name.replace("__", "_")
         name = name.strip("_")
-        unit = unit.strip()
-        unit = unit.replace(")", "")
         rename_columns[column] = name
-        units[name] = unit
 
     data.rename(columns=rename_columns, inplace=True)
     metadata["Units"] = units
