@@ -27,7 +27,7 @@ class hallMeasurement:
     angle_offset: float = 0.
     series_resistance: float = 1e3
     device_resistance: float = 0.
-    angle_auto_correct: bool = True
+    angle_auto_correct: bool = False
     orientation: str = "PHE"
     mask_angle: {float, None} = None
     mask_width: {float, None} = None
@@ -670,6 +670,8 @@ def correct_angle_per_group(dataset, metadata, group_keys,
     # dataset["angle"] -= angle_offset
     # dataset["angle_offset"] = angle_offset
 
+    dataset["angle"] *= -1
+
     if auto_correct:
         def get_angle_offset(df):
             # Use quadrature demodulation to get phase shift
@@ -682,7 +684,8 @@ def correct_angle_per_group(dataset, metadata, group_keys,
 
             phase = np.degrees(np.arctan2(int_I, int_Q))
 
-            phase = phase / 2 - angle_offset
+            phase = phase / 2 + angle_offset - 45
+            # phase = phase / 2 - angle_offset
 
             df["angle_offset"] = phase
 
