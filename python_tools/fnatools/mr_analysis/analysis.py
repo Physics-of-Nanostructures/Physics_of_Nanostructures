@@ -56,12 +56,16 @@ class hallMeasurement:
         else:
             self.tqdm_fn = tqdm.tqdm
 
-        self.DataOriginal, self.MetaDataOriginal = import_multiple_data(
-            self.path, self.file_name_format,
-            map_fn=self.map_fn,
-            min_length=self.min_length,
-        )
-        self.reset_to_original()
+        if self.path is not None and self.file_name_format is not None:
+            self.DataOriginal, self.MetaDataOriginal = import_multiple_data(
+                self.path, self.file_name_format,
+                map_fn=self.map_fn,
+                min_length=self.min_length,
+            )
+            self.reset_to_original()
+        else:
+            print("WARNING: Manually add DataOriginal and MetaDataOriginal")
+
         if analyse_and_plot:
             self.full_analysis()
             self.plot_data()
