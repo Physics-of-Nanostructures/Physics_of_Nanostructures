@@ -63,8 +63,17 @@ class hallMeasurement:
                 min_length=self.min_length,
             )
             self.reset_to_original()
+        elif self.Data is not None:
+            self.DataOriginal = self.Data
+
+            if self.MData is not None:
+                self.MetaDataOriginal = self.MData
+            else:
+                self.MetaDataOriginal = dict(manipulations=["Manual import"])
+
+            self.reset_to_original()
         else:
-            print("WARNING: Manually add DataOriginal and MetaDataOriginal")
+            print("WARNING: Manually add DataOriginal and MetaDataOriginal (& reset)")
 
         if analyse_and_plot:
             self.full_analysis()
