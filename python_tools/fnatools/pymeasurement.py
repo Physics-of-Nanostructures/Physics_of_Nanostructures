@@ -6,7 +6,7 @@ import pandas
 import numpy
 import re
 
-
+# DO NOT CHANGE THIS CLASS ANYMORE, OBSOLETE
 def pyMeasurement(filename, min_length=None, MD_in_DF=False, lower_case=False):
     """
     Function to import MR measurements done with a pyMeasure measuring suite.
@@ -15,6 +15,17 @@ def pyMeasurement(filename, min_length=None, MD_in_DF=False, lower_case=False):
     ----------
     filename : string
         filename (relative path) of the data file.
+    min_length : None or int
+        Minimum numbers of lines of data that is required for the file to be
+        imported.
+    MD_in_DF : bool, list, or dict
+        determined whether data from the metadata should be put in the dataframe.
+        If True, all metadata will be copied to the dataframe; if a list of keys
+        is given, those keys will be copied from the metadata to the dataframe; if
+        a dict is given it will copy the keys of the dict to columns in the dataframe
+        with names given by the values in the dict.
+    lower_case : bool
+        Convert all columns to lower case.
 
     Returns
     -------
