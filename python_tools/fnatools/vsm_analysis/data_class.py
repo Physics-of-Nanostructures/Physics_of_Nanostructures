@@ -9,6 +9,7 @@ class MagnetometryMeasurement:
     filename: str
 
     magnetic_volume: float = 0
+    shape_factor: float = 1
     measurement_system: str = "MPMS3"
 
     keep_columns: InitVar[bool] = False
@@ -18,6 +19,8 @@ class MagnetometryMeasurement:
 
         if self.measurement_system.lower() == "mpms3":
             self.import_mpms3(self.filename, keep_columns, no_print)
+
+        self.correct_shape_factor()
 
         if not self.magnetic_volume == 0:
             self.calculate_magnetization()
@@ -195,7 +198,38 @@ class MagnetometryMeasurement:
 
         return self.data, self.metadata
 
-    def calculate_magnetization(self, *, data: pandas.DataFrame=None,
+    def correct_shape_factor(self, *, data: pandas.DataFrame = None,
+                             shape_factor: float = None):
+        """
+        Correct the measured moment for the shape-artefact of the VSM-SQUID.
+        The shape-factor (or shape-artefact) can be found in the documents
+        provided with the VSM-SQUID.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame
+            Data for which the magnetization is to be calculated if the
+            class-data is not used. Replaces the class data.
+        shape_factor : float
+            The shape-factor or shape-artefact. The data is divided by
+            this factor. Replaces the class-data.
+        """
+
+        if data is not None:
+            self.data = data
+
+        if shape_factor is not None:
+            self.shape_factor = shape_factor
+
+        self.data["Moment"] = self.data["Moment"] / self.shape_factor
+        self.data["M_Std_Err"] = self.data["M_Std_Err"] / self.shape_factor
+
+        if data is not None:
+            return self.data
+        else:
+            return self
+
+    def calculate_magnetization(self, *, data: pandas.DataFrame = None,
                                 magnetic_volume: float = None):
         """
         Method to calculate the (average) magnetization from the total
@@ -220,7 +254,12 @@ class MagnetometryMeasurement:
         self.data["Magnetization"] = self.data["Moment"] / self.magnetic_volume
         self.data["Ma_Std_Err"] = self.data["M_Std_Err"] / self.magnetic_volume
 
-    def calculate_normalized_moment(self, *, data: pandas.DataFrame=None):
+        if data is not None:
+            return self.data
+        else:
+            return self
+
+    def calculate_normalized_moment(self, *, data: pandas.DataFrame = None):
         """
         Method to calculate the normalised moment from the total measured
         moments of the sample. Also calculates the uncertainty.
@@ -241,7 +280,12 @@ class MagnetometryMeasurement:
         self.data["Moment_Normalized"] = self.data["Moment"] / max_val
         self.data["M_Norm_Std_Err"] = self.data["M_Std_Err"] / max_val
 
-    def background_subtraction(self, *, data: pandas.DataFrame=None,
+        if data is not None:
+            return self.data
+        else:
+            return self
+
+    def background_subtraction(self, *, data: pandas.DataFrame = None,
                                keep_uncorrected: bool = False,
                                slope_error: float = 1e-2, edge_points: int = 4,
                                use_field_weights: bool = True):
@@ -365,4 +409,7 @@ class MagnetometryMeasurement:
 
         self.calculate_normalized_moment()
 
-        return self.data, background_parameters
+        if data is not None:
+            return self.data, background_parameters
+        else:
+            return self
