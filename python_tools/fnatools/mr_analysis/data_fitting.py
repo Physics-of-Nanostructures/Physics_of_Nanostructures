@@ -390,7 +390,7 @@ def simplified_1st_harmonic_SW(phi=0, phi_0=0, theta=90, theta_0=0,
 
 
 def simplified_2nd_harmonic(phi=0, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
-                            R_AHE_DL=1, V_0=0):
+                            R_AHE_DL=1, R_AHE_FL=1, V_0=0):
     """
     Calculate the second harmonic hall voltage based on equation (2) from
     MacNeill et al. (2017) PRB 96, 054450.
@@ -411,6 +411,8 @@ def simplified_2nd_harmonic(phi=0, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
         Planar-Hall resistance for DL torque (Ohm)
     R_AHE_DL : float
         Anomalous-Hall resistance for DL torque (Ohm)
+    R_AHE_FL : float
+        Anomalous-Hall resistance for FL torque (Ohm)
     V_0: float
         Offset voltage (V)
 
@@ -421,13 +423,15 @@ def simplified_2nd_harmonic(phi=0, phi_0=0, I_0=1, R_PHE_FL=1, R_PHE_DL=1,
     """
     phi_M = numpy.radians(phi) - numpy.radians(phi_0)
 
-    C_PHE_FL = numpy.cos(2 * phi_M) * numpy.cos(phi_M)
-    C_PHE_DL = numpy.cos(2 * phi_M)
-    C_AHE_DL = numpy.cos(phi_M)
+    C_PHE_FL = numpy.cos(2 * phi_M) * numpy.cos(phi_M)  # tau_A
+    C_PHE_DL = numpy.cos(2 * phi_M)  # tau_B
+    C_AHE_DL = numpy.cos(phi_M)  # tau_S
+    C_AHE_FL = 1  # tau_T
 
     V2_H = V_0 + I_0 * (R_PHE_FL * C_PHE_FL +
                         R_PHE_DL * C_PHE_DL +
-                        R_AHE_DL * C_AHE_DL * 0.5)
+                        R_AHE_DL * C_AHE_DL * 0.5 +
+                        R_AHE_FL * C_AHE_FL * 0.5)
     return V2_H
 
 

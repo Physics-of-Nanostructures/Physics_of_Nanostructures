@@ -31,7 +31,8 @@ class hallMeasurement:
     orientation: str = "PHE"
     mask_angle: {float, None} = None
     mask_width: {float, None} = None
-    include_τB: bool = True
+    include_τB: bool = False
+    include_τT: bool = False
     min_field: float = 0.
     lock_in_harmonics: list = None
 
@@ -161,7 +162,8 @@ class hallMeasurement:
             group_keys=["temperature_sp", "magnetic_field"],
             analysis_fn=data_analysis_individual,
             map_fn=self.map_fn, tqdm_fn=self.tqdm_fn,
-            include_PHE_DL=self.include_τB
+            include_PHE_DL=self.include_τB,
+            include_AHE_FL=self.include_τT
         )
 
     def individual_analysis_f2(self):
@@ -866,7 +868,8 @@ def data_analysis_individual_full(group_item, group_keys=None):
     return group
 
 
-def data_analysis_individual(group_item, group_keys=None, include_PHE_DL=True):
+def data_analysis_individual(group_item, group_keys=None,
+                             include_PHE_DL=True, include_AHE_FL=True):
     group_values, data = group_item
     data = data.copy()
 
@@ -916,6 +919,11 @@ def data_analysis_individual(group_item, group_keys=None, include_PHE_DL=True):
 
     if not include_PHE_DL:
         params_h2["R_PHE_DL"].set(vary=False, value=0)
+
+    if not include_AHE_FL:
+        params_h2["R_AHE_FL"].set(vary=False, value=0)
+
+    params_h2["V_0"].set(vary=False, value=0)
 
     # params_h2["phi_0"].set(vary=True, value=fit_result_h1.params['phi_0'])
 
