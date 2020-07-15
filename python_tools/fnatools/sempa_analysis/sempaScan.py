@@ -7,6 +7,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpp
 import matplotlib.colors as mpc
+from matplotlib.widgets import RectangleSelector
 from skimage.feature import register_translation
 from scipy.ndimage import fourier_shift
 import numpy as np
@@ -356,8 +357,46 @@ class SEMPA_Scan:
             rect_size = self.channels.shape[0:2] - edge * 2
         else:
             print("size:", len(self.x), "x", len(self.y))
-            raise NotImplementedError(
-                "None rect_size and edge not yet implemented")
+
+            fig, ax = plt.subplots()
+            ax.pcolormesh(self.x * 1e6, self.y * 1e6, self.mag)
+            ax.set_aspect('equal')
+            ax.set_xlim(auto=False)
+            ax.set_ylim(auto=False)
+            ax.set_title("Select region for cropping\n"
+                         "Confirm with double-click or enter")
+
+            def selector(event, event_release=None):
+                if event.key == "enter" or (hasattr(event, "dblclick") and event.dblclick):
+                    selector.RS.set_active(False)
+                    plt.close(fig)
+
+            selector.RS = RectangleSelector(ax, selector,
+                                            drawtype='box',
+                                            useblit=True,
+                                            button=[1],
+                                            minspanx=5,
+                                            minspany=5,
+                                            spancoords='pixels',
+                                            interactive=True)
+
+            fig.canvas.mpl_connect('key_press_event', selector)
+            fig.canvas.mpl_connect('button_press_event', selector)
+
+            plt.show()
+
+            xmin, xmax, ymin, ymax = np.array(selector.RS.extents) * 1e-6
+
+            xmin = np.argmax(self.x >= xmin)
+            xmax = np.argmax(self.x >= xmax) - 1
+            ymin = np.argmax(self.y >= ymin)
+            ymax = np.argmax(self.y >= ymax) - 1
+
+            rect_size = (xmax - xmin, ymax - ymin)
+            rect_position = (xmin, ymin)
+
+            print("Re-use the selected crop-region using:\n"
+                  ".crop({}, {})".format(rect_size, rect_position))
 
         if isinstance(rect_size, (list, tuple)):
             rect_size = np.array(rect_size)
