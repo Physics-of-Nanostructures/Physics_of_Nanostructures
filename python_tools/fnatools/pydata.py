@@ -115,7 +115,7 @@ class pyData:
             return None, None
 
         # Check if the dataframe has a sufficient length
-        if len(data) < min_length:
+        if min_length is not None and len(data) < min_length:
             return None, None
 
         # Add keys of the metadata to the dataframe (if required)
