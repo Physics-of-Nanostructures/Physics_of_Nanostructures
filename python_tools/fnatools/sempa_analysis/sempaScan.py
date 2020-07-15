@@ -7,7 +7,6 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpp
 import matplotlib.colors as mpc
-from skimage.transform import rescale
 from skimage.feature import register_translation
 from scipy.ndimage import fourier_shift
 import numpy as np
@@ -45,7 +44,6 @@ class SEMPA_Scan:
             self.filename = datasource
             self.read_file()
             self.reshape_data()
-            # print(self.channels.shape)
 
         elif isinstance(datasource, SEMPA_Scan):
             self.channels = datasource.channels
@@ -57,7 +55,7 @@ class SEMPA_Scan:
 
             if x_data is None or y_data is None:
                 ValueError(
-                    "x_data and y_data should be present when " +
+                    "x_data and y_data should be present when "
                     "channel data is provided as np.ndarray"
                 )
 
@@ -216,7 +214,7 @@ class SEMPA_Scan:
             order='F'
         )
         self.channels = np.swapaxes(self.channels, 0, 2)
-        self.channels = np.rot90(self.channels, 2)
+        self.channels = np.flipud(self.channels)
         self.channels = self.channels.astype(float)
 
         return self
