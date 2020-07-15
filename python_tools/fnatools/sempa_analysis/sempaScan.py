@@ -357,11 +357,14 @@ class SEMPA_Scan:
 
             rect_size = self.channels.shape[0:2] - edge * 2
         else:
+            print("size:", len(self.x), "x", len(self.y))
             raise NotImplementedError(
                 "None rect_size and edge not yet implemented")
 
         if isinstance(rect_size, (list, tuple)):
             rect_size = np.array(rect_size)
+        elif isinstance(rect_size, (float, int)):
+            rect_size = np.array([rect_size, rect_size])
 
         if rect_position is None:
             rect_position = (self.channels.shape[0:2] - rect_size) // 2
