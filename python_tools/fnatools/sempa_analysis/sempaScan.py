@@ -9,7 +9,7 @@ import matplotlib.patches as mpp
 import matplotlib.colors as mpc
 from matplotlib.widgets import RectangleSelector
 from skimage.feature import register_translation
-from scipy.ndimage import fourier_shift
+from scipy.ndimage import fourier_shift, gaussian_filter
 import numpy as np
 from pathlib import Path
 
@@ -256,15 +256,23 @@ class SEMPA_Scan:
 
     @property
     def asym_x(self):
-        return (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
+        asym_x = (self.channels[:, :, 0] - self.channels[:, :, 1]) / \
             (self.channels[:, :, 0] + self.channels[:, :, 1]) \
             - self.bg_asym_x - self.shift_asym_x
 
+        if self.smooth:
+            asym_x = gaussian_filter(asym_x, sigma=self.smooth_sigma)
+        return asym_x
+
     @property
     def asym_y(self):
-        return (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
+        asym_y = (self.channels[:, :, 2] - self.channels[:, :, 3]) / \
             (self.channels[:, :, 2] + self.channels[:, :, 3]) \
             - self.bg_asym_y - self.shift_asym_y
+
+        if self.smooth:
+            asym_y = gaussian_filter(asym_y, sigma=self.smooth_sigma)
+        return asym_y
 
     @property
     def angle(self):
@@ -444,6 +452,8 @@ class SEMPA_Scan:
             self.bg_sem = datasource.bg_sem
             self.bg_asym_x = datasource.bg_asym_x
             self.bg_asym_y = datasource.bg_asym_y
+            self.smooth = datasource.smooth
+            self.smooth_sigma = datasource.smooth_sigma
 
             self.shift_asym_x = datasource.shift_asym_x
             self.shift_asym_y = datasource.shift_asym_y
@@ -458,6 +468,8 @@ class SEMPA_Scan:
             self.shift_asym_x = 0
             self.shift_asym_y = 0
             self.range_asym = 0
+            self.smooth = False
+            self.smooth_sigma = 0.75
             self.norm = mpc.NoNorm()
 
         return self
@@ -511,8 +523,14 @@ class SEMPA_Scan:
 
         return self
 
-    def process(self):
+    def process(self, smooth=False, sigma=None):
+        self.smooth = False
         self.calculate_background()
+
+        self.smooth = smooth
+        if sigma is not None and isinstance(sigma, (float, int)):
+            self.smooth_sigma = sigma
+
         self.center_asymmetry()
         return self
 
