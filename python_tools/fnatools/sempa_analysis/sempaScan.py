@@ -33,7 +33,95 @@ def import_SEMPA_scans(source: str, merge=True, ):
 @dataclass
 class SEMPA_Scan:
     """
-    Class to import and process a single SEMPA scan
+    Class to import and process a single SEMPA scan. Importing multiple scans
+    can be done using the import_SEMPA_scans function, which returns a merged
+    instance of this (SEMPA_Scan) class.
+
+    Example usage:
+
+        data = SEMPA_Scan(file) \
+            .crop(169, (29, 27)) \
+            .process()
+
+        fig, ax = plt.subplot()
+        pcolormesh(data.x * 1e6, data.y * 1e6, data.asym_x,
+                   norm=data.norm)
+
+
+    Parameters
+    ----------
+    datasource : string, pathlib.Path, SEMPA_Scan, np.ndarray
+        The datasource from which to obtain the SEMPA scan data. If a string of
+        Path is given, the data will be read from a source file (typically with
+        extension ".Detector_flat"). If another SEMPA_Scan object is provided,
+        the channel-, x- and y-data will be copied. The rest of the data will
+        be neglected. If a np.ndarray is provided, this will be assumed to be
+        the channel data and x- and y- data should be provided to the respective
+        optional parameters.
+    x_data : np.ndarray
+        Array of x-values. Only used if datasource is given an np.ndarray.
+    y_data : np.ndarray
+        Array of y-values. Only used if datasource is given an np.ndarray.
+
+    Methods
+    -------
+    read_file
+    reshape_data
+    correct_drift
+    average
+    crop
+    calculate_background
+    reset_corrections
+    center_asymmetry
+    process
+
+    Attributes
+    ----------
+    filename
+    x : np.ndarray
+        Array of x-coordinates.
+    y : np.ndarray
+        Array of y-coordinates.
+    norm : mpl.colors.Normalize
+        A normalizer that can be used for plotting the asymmetry data. Created
+        after centring the asymmetry.
+    smooth : bool
+        Enables or disables Gaussian smoothing.
+    smooth_sigma : float
+        Controls the standard deviation for Gaussian smoothing.
+    X : np.ndarray, read-only
+        Meshed version of the x-coordinates.
+    Y : np.ndarray, read-only
+        Meshed version of the y-coordinates.
+    ch1 : np.ndarray, read-only
+        Channel data of channel 1. Background is subtracted after background
+        calculation.
+    ch2 : np.ndarray, read-only
+        Channel data of channel 2. Background is subtracted after background
+        calculation.
+    ch3 : np.ndarray, read-only
+        Channel data of channel 3. Background is subtracted after background
+        calculation.
+    ch4 : np.ndarray, read-only
+        Channel data of channel 4. Background is subtracted after background
+        calculation.
+    sem : np.ndarray, read-only
+        SEM data, or sum of all channels. Background is subtracted after
+        background calculation.
+    asym_x : np.ndarray, read-only
+        Horizontal asymmetry data (i.e. channel 1 minus 2). Background is
+        subtracted after background calculation and smoothed when enabled.
+    asym_y : np.ndarray, read-only
+        Vertical asymmetry data (i.e. channel 3 minus 4). Background is
+        subtracted after background calculation and smoothed when enabled.
+    angle : np.ndarray, read-only
+        The (planar) angle of the magnetization (i.e. the arctan of asym_x and
+        asym_y). Smoothed when enabled.
+    mag : np.ndarray, read-only
+        The magnitude of the magnetization (i.e. norm of asym_x and asym_y).
+        Background is subtracted after background calculation and smoothed when
+        enabled.
+
     """
 
     datasource: InitVar[(str, SEMPA_Scan, np.ndarray)] = None
@@ -524,6 +612,28 @@ class SEMPA_Scan:
         return self
 
     def process(self, smooth=False, sigma=None):
+        """
+        Convenience-method for calculating background-signal and centring the
+        asymmetry. It also incorporates the possibility to turn on Gaussian
+        smoothing after the background calculation.
+
+        Parameters
+        ----------
+        smooth : bool, optional
+            Indicate whether smoothing is turned on or off (default) before
+            centring the asymmetry.
+        sigma : bool, optional
+            The standard deviation used for Gaussian smoothing if turned on.
+            Default value is 0.75, and current value is not replaced when left
+            empty.
+
+        Returns
+        -------
+        SEMPA_Scan
+            Contains itself after background calculation and asymmetry centring.
+
+        """
+
         self.smooth = False
         self.calculate_background()
 
