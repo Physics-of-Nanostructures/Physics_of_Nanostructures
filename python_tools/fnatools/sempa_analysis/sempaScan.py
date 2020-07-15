@@ -462,7 +462,7 @@ class SEMPA_Scan:
             ax.add_patch(circle)
 
             percentile = np.sum(radii < asym_range) / len(asym_x_fl)
-            ax.set_title('2D asymmetry histogram\n' +
+            ax.set_title('2D asymmetry histogram\n'
                          f'{percentile:.2%} of the data lies within the range')
 
         self.shift_asym_x = shift_asym_x
@@ -532,14 +532,14 @@ class SEMPA_Scan:
                 other = np.moveaxis(other, 0, 2)
             else:
                 raise ValueError(
-                    "Shape of arrays to add do not match: " +
+                    "Shape of arrays to add do not match: "
                     f"{self.channels.shape} and {other.shape}"
                 )
         elif np.isscalar(other):
             other = np.tile(other, self.channels.shape)
         else:
             raise TypeError(
-                f"unsupported operand type(s) for {operation}:" +
+                f"unsupported operand type(s) for {operation}:"
                 f"'{type(self)}' and '{type(other)}'"
             )
 
