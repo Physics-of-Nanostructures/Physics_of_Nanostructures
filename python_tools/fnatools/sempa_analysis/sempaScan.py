@@ -507,7 +507,7 @@ class SEMPA_Scan:
         self.shift_asym_x = shift_asym_x
         self.shift_asym_y = shift_asym_y
         self.asym_range = asym_range
-        self.norm = mpc.DivergingNorm(0, vmin=-asym_range, vmax=asym_range)
+        self.norm = mpc.TwoSlopeNorm(0, vmin=-asym_range, vmax=asym_range)
 
         return self
 
