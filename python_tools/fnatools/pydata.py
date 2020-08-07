@@ -81,7 +81,7 @@ class pyData:
 
         # Import data
         results = list(output)
-        results = np.array(results).T.tolist()
+        results = np.array(results, dtype=object).T.tolist()
 
         # Concatenate data into single dataframe
         data = pd.concat(results[0]) \
