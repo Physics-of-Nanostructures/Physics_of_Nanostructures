@@ -13,12 +13,12 @@ class MagnetometryMeasurement:
     measurement_system: str = "MPMS3"
 
     keep_columns: InitVar[bool] = False
-    no_print: InitVar[bool] = False
+    verbose: InitVar[bool] = False
 
-    def __post_init__(self, keep_columns=False, no_print=False):
+    def __post_init__(self, keep_columns=False, verbose=False):
 
         if self.measurement_system.lower() == "mpms3":
-            self.import_mpms3(self.filename, keep_columns, no_print)
+            self.import_mpms3(self.filename, keep_columns, verbose)
 
         self.correct_shape_factor()
 
@@ -27,7 +27,7 @@ class MagnetometryMeasurement:
 
         self.calculate_normalized_moment()
 
-    def import_mpms3(self, filename, keep_columns=False, no_print=False):
+    def import_mpms3(self, filename, keep_columns=False, verbose=False):
         """
         Method to import measurements from a Quantum Design
         MPMS3 VSM SQUID.
@@ -39,7 +39,7 @@ class MagnetometryMeasurement:
         keep_columns : bool, optional
             Indicate whether or not all columns are to be kept. If False
             (default), all empty columns will be removed from the dataframe.
-        no_print : bool, optional
+        verbose : bool, optional
             Print comments and units of the returned dataframe.
 
         Returns
@@ -182,7 +182,7 @@ class MagnetometryMeasurement:
         self.data.sort_values("Time_Stamp", inplace=True)
         self.data.reset_index(drop=True, inplace=True)
 
-        if not no_print:
+        if verbose:
             print()
             print("Columns, Unit")
             for key, value in self.metadata["Units"].items():
