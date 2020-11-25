@@ -6,6 +6,7 @@ import pandas
 import numpy
 import re
 
+
 # DO NOT CHANGE THIS CLASS ANYMORE, OBSOLETE
 def pyMeasurement(filename, min_length=None, MD_in_DF=False, lower_case=False):
     """
@@ -34,6 +35,7 @@ def pyMeasurement(filename, min_length=None, MD_in_DF=False, lower_case=False):
     dict
         contains other information obtained from the datafile
     """
+    raise DeprecationWarning("This class is superseded by pyData class")
     metadata = {}
     with open(filename, "r") as file:
         line_idx = 0
