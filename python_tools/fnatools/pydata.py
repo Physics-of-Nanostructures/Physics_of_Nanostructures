@@ -155,7 +155,7 @@ class pyData:
                 line = line.strip()
 
                 # Check if Data section begins
-                if line == "#Data:":
+                if line == "#Data:" or line == "# Start Measurement Data":
                     break
                 elif line == "#Parameters:":
                     continue
@@ -169,6 +169,10 @@ class pyData:
 
                 elif line.startswith("#\t"):
                     info = line[2:].rsplit(": ", maxsplit=1)
+                    metadata[info[0].strip()] = info[1].strip()
+
+                elif line.startswith("# "):
+                    info = line[2:].rsplit("\t", maxsplit=1)
                     metadata[info[0].strip()] = info[1].strip()
 
         return metadata
